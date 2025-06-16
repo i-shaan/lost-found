@@ -6,6 +6,7 @@ import { aiClient } from '../services/aiService';
 
 export const createItem = async (req: Request, res: Response) => {
   try {
+    logger.info("request",req)
     const {
       title,
       description,
@@ -35,38 +36,38 @@ export const createItem = async (req: Request, res: Response) => {
     });
 
     // Process with AI services if available
-    try {
-      // Analyze text description
-      const textAnalysis = await aiClient.analyzeText(description);
+    // try {
+    //   // Analyze text description
+    //   const textAnalysis = await aiClient.analyzeText(description);
       
-      // Analyze images if provided
-      let imageAnalysis = null;
-      if (images && images.length > 0) {
-        imageAnalysis = await aiClient.analyzeImage(images[0]);
-      }
+    //   // Analyze images if provided
+    //   let imageAnalysis = null;
+    //   if (images && images.length > 0) {
+    //     imageAnalysis = await aiClient.analyzeImage(images[0]);
+    //   }
 
-      // Auto-categorize if not provided
-      if (!category) {
-        const suggestedCategory = await aiClient.categorizeItem(description, images?.[0]);
-        item.category = suggestedCategory;
-      }
+    //   // Auto-categorize if not provided
+    //   if (!category) {
+    //     const suggestedCategory = await aiClient.categorizeItem(description, images?.[0]);
+    //     item.category = suggestedCategory;
+    //   }
 
-      // Store AI metadata
-      item.aiMetadata = {
-        textEmbedding: textAnalysis.embedding,
-        imageFeatures: imageAnalysis?.features,
-        confidence: imageAnalysis?.confidence || textAnalysis.confidence,
-        category: textAnalysis.category
-      };
+    //   // Store AI metadata
+    //   item.aiMetadata = {
+    //     textEmbedding: textAnalysis.embedding,
+    //     imageFeatures: imageAnalysis?.features,
+    //     confidence: imageAnalysis?.confidence || textAnalysis.confidence,
+    //     category: textAnalysis.category
+    //   };
 
-      // Extract additional tags from AI analysis
-      if (textAnalysis.keywords) {
-        item.tags = [...new Set([...item.tags, ...textAnalysis.keywords])];
-      }
+    //   // Extract additional tags from AI analysis
+    //   if (textAnalysis.keywords) {
+    //     item.tags = [...new Set([...item.tags, ...textAnalysis.keywords])];
+    //   }
 
-    } catch (aiError) {
-      logger.warn('AI processing failed, continuing without AI features:', aiError);
-    }
+    // } catch (aiError) {
+    //   logger.warn('AI processing failed, continuing without AI features:', aiError);
+    // }
 
     await item.save();
 

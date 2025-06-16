@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { User } from '../models/Users';
 import { Item } from '../models/Item';
 import { logger } from '../utils/loggers';
-
+import { Types } from 'mongoose';
 export const getProfile = async (req: Request, res: Response) => {
   try {
     const user = await User.findById(req.user!.id);
@@ -106,11 +106,12 @@ export const getUserItems = async (req: Request, res: Response) => {
   }
 };
 
+
+
 export const getUserStats = async (req: Request, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = new Types.ObjectId(req.user!.id); // convert to ObjectId
 
-    // Get item counts by type and status
     const stats = await Item.aggregate([
       { $match: { reporter: userId } },
       {
@@ -121,19 +122,16 @@ export const getUserStats = async (req: Request, res: Response) => {
       }
     ]);
 
-    // Get total views
     const totalViews = await Item.aggregate([
       { $match: { reporter: userId } },
       { $group: { _id: null, totalViews: { $sum: '$views' } } }
     ]);
 
-    // Get recent activity
     const recentItems = await Item.find({ reporter: userId })
       .sort({ createdAt: -1 })
       .limit(5)
       .select('title type status createdAt');
 
-    // Format stats
     const formattedStats = {
       totalItems: 0,
       lostItems: 0,
@@ -146,18 +144,11 @@ export const getUserStats = async (req: Request, res: Response) => {
 
     stats.forEach(stat => {
       formattedStats.totalItems += stat.count;
-      
-      if (stat._id.type === 'lost') {
-        formattedStats.lostItems += stat.count;
-      } else {
-        formattedStats.foundItems += stat.count;
-      }
-      
-      if (stat._id.status === 'active') {
-        formattedStats.activeItems += stat.count;
-      } else if (stat._id.status === 'claimed') {
-        formattedStats.claimedItems += stat.count;
-      }
+      if (stat._id.type === 'lost') formattedStats.lostItems += stat.count;
+      else formattedStats.foundItems += stat.count;
+
+      if (stat._id.status === 'active') formattedStats.activeItems += stat.count;
+      else if (stat._id.status === 'claimed') formattedStats.claimedItems += stat.count;
     });
 
     res.json({
@@ -173,6 +164,7 @@ export const getUserStats = async (req: Request, res: Response) => {
     });
   }
 };
+
 
 export const deleteAccount = async (req: Request, res: Response) => {
   try {
