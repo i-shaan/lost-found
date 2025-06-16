@@ -3,16 +3,15 @@ import { Item } from '../models/Item';
 import { User } from '../models/Users';
 import { logger } from '../utils/loggers';
 import { aiClient } from '../services/aiService';
+import { uploadToCloudinary } from '../utils/cloudinary';
 
 export const createItem = async (req: Request, res: Response) => {
   try {
-    logger.info("request",req)
     const {
       title,
       description,
       category,
       type,
-      images,
       location,
       dateLostFound,
       tags,
@@ -20,54 +19,99 @@ export const createItem = async (req: Request, res: Response) => {
       contactPreference
     } = req.body;
 
+    // Handle image uploads
+    let imageUrls: string[] = [];
+    if (req.files && Array.isArray(req.files)) {
+      try {
+        const uploadPromises = req.files.map(async (file: Express.Multer.File) => {
+          const result = await uploadToCloudinary(file.buffer, {
+            folder: 'lost-found/items',
+            transformation: [
+              { width: 800, height: 600, crop: 'limit' },
+              { quality: 'auto' },
+              { format: 'webp' }
+            ]
+          });
+          return result.secure_url;
+        });
+        
+        imageUrls = await Promise.all(uploadPromises);
+      } catch (uploadError) {
+        logger.error('Image upload failed:', uploadError);
+        return res.status(400).json({
+          success: false,
+          message: 'Failed to upload images'
+        });
+      }
+    }
+
+    // Parse location if it's a string
+    let parsedLocation;
+    try {
+      parsedLocation = typeof location === 'string' ? JSON.parse(location) : location;
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid location format'
+      });
+    }
+
+    // Parse tags if it's a string
+    let parsedTags = [];
+    try {
+      parsedTags = typeof tags === 'string' ? JSON.parse(tags) : (tags || []);
+    } catch (error) {
+      parsedTags = [];
+    }
+
     // Create new item
     const item = new Item({
       title,
       description,
       category,
       type,
-      images,
-      location,
-      dateLostFound,
+      images: imageUrls,
+      location: parsedLocation,
+      dateLostFound: dateLostFound ? new Date(dateLostFound) : undefined,
       reporter: req.user!.id,
-      tags,
-      reward,
-      contactPreference
+      tags: parsedTags,
+      reward: reward ? parseFloat(reward) : undefined,
+      contactPreference: contactPreference || 'platform'
     });
 
     // Process with AI services if available
-    // try {
-    //   // Analyze text description
-    //   const textAnalysis = await aiClient.analyzeText(description);
+    try {
+      // Analyze text description
+      const textAnalysis = await aiClient.analyzeText(description);
       
-    //   // Analyze images if provided
-    //   let imageAnalysis = null;
-    //   if (images && images.length > 0) {
-    //     imageAnalysis = await aiClient.analyzeImage(images[0]);
-    //   }
+      // Analyze images if provided
+      let imageAnalysis = null;
+      if (imageUrls.length > 0) {
+        imageAnalysis = await aiClient.analyzeImage(imageUrls[0]);
+      }
 
-    //   // Auto-categorize if not provided
-    //   if (!category) {
-    //     const suggestedCategory = await aiClient.categorizeItem(description, images?.[0]);
-    //     item.category = suggestedCategory;
-    //   }
+      // Auto-categorize if not provided
+      if (!category) {
+        const suggestedCategory = await aiClient.categorizeItem(description, imageUrls[0]);
+        item.category = suggestedCategory;
+      }
 
-    //   // Store AI metadata
-    //   item.aiMetadata = {
-    //     textEmbedding: textAnalysis.embedding,
-    //     imageFeatures: imageAnalysis?.features,
-    //     confidence: imageAnalysis?.confidence || textAnalysis.confidence,
-    //     category: textAnalysis.category
-    //   };
+      // Store AI metadata
+      item.aiMetadata = {
+        textEmbedding: textAnalysis.embedding,
+        imageFeatures: imageAnalysis?.features,
+        confidence: imageAnalysis?.confidence || textAnalysis.confidence,
+        category: textAnalysis.category
+      };
 
-    //   // Extract additional tags from AI analysis
-    //   if (textAnalysis.keywords) {
-    //     item.tags = [...new Set([...item.tags, ...textAnalysis.keywords])];
-    //   }
+      // Extract additional tags from AI analysis
+      if (textAnalysis.keywords) {
+        item.tags = [...new Set([...item.tags, ...textAnalysis.keywords])];
+      }
 
-    // } catch (aiError) {
-    //   logger.warn('AI processing failed, continuing without AI features:', aiError);
-    // }
+    } catch (aiError) {
+      logger.warn('AI processing failed, continuing without AI features:', aiError);
+    }
 
     await item.save();
 
@@ -96,6 +140,110 @@ export const createItem = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: 'Failed to create item'
+    });
+  }
+};
+
+export const updateItem = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    const item = await Item.findById(id);
+
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: 'Item not found'
+      });
+    }
+
+    // Check ownership
+    if (item.reporter.toString() !== req.user!.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this item'
+      });
+    }
+
+    // Handle new image uploads
+    let newImageUrls: string[] = [];
+    if (req.files && Array.isArray(req.files)) {
+      try {
+        const uploadPromises = req.files.map(async (file: Express.Multer.File) => {
+          const result = await uploadToCloudinary(file.buffer, {
+            folder: 'lost-found/items',
+            transformation: [
+              { width: 800, height: 600, crop: 'limit' },
+              { quality: 'auto' },
+              { format: 'webp' }
+            ]
+          });
+          return result.secure_url;
+        });
+        
+        newImageUrls = await Promise.all(uploadPromises);
+      } catch (uploadError) {
+        logger.error('Image upload failed:', uploadError);
+        return res.status(400).json({
+          success: false,
+          message: 'Failed to upload new images'
+        });
+      }
+    }
+
+    // Parse location if it's a string
+    if (updates.location && typeof updates.location === 'string') {
+      try {
+        updates.location = JSON.parse(updates.location);
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid location format'
+        });
+      }
+    }
+
+    // Parse tags if it's a string
+    if (updates.tags && typeof updates.tags === 'string') {
+      try {
+        updates.tags = JSON.parse(updates.tags);
+      } catch (error) {
+        updates.tags = [];
+      }
+    }
+
+    // Handle image updates
+    if (newImageUrls.length > 0) {
+      // If keepExistingImages is true, append new images, otherwise replace
+      const keepExisting = updates.keepExistingImages === 'true';
+      if (keepExisting) {
+        updates.images = [...item.images, ...newImageUrls];
+      } else {
+        updates.images = newImageUrls;
+      }
+    }
+
+    // Remove keepExistingImages from updates as it's not a model field
+    delete updates.keepExistingImages;
+
+    // Update item
+    Object.assign(item, updates);
+    await item.save();
+
+    await item.populate('reporter', 'name email avatar');
+
+    res.json({
+      success: true,
+      message: 'Item updated successfully',
+      data: { item }
+    });
+
+  } catch (error) {
+    logger.error('Update item error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update item'
     });
   }
 };
@@ -217,49 +365,6 @@ export const getItem = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch item'
-    });
-  }
-};
-
-export const updateItem = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const updates = req.body;
-
-    const item = await Item.findById(id);
-
-    if (!item) {
-      return res.status(404).json({
-        success: false,
-        message: 'Item not found'
-      });
-    }
-
-    // Check ownership
-    if (item.reporter.toString() !== req.user!.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to update this item'
-      });
-    }
-
-    // Update item
-    Object.assign(item, updates);
-    await item.save();
-
-    await item.populate('reporter', 'name email avatar');
-
-    res.json({
-      success: true,
-      message: 'Item updated successfully',
-      data: { item }
-    });
-
-  } catch (error) {
-    logger.error('Update item error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update item'
     });
   }
 };
@@ -532,7 +637,7 @@ async function findPotentialMatches(item: any) {
     }).populate('reporter', 'name avatar');
 
     return matches.map((match: any) => {
-      const matchedItem = matchedItems.find(item => item.id.toString() === match.itemId);
+      const matchedItem = matchedItems.find((item: any) => item._id.toString() === match.itemId);
       return {
         ...match,
         item: matchedItem

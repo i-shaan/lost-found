@@ -9,8 +9,8 @@ import MongoStore from 'connect-mongo';
 import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
-import swaggerUi from 'swagger-ui-express';
-import { setupSwagger } from './utils/swaggers';
+
+import { specs, swaggerUi, swaggerUiOptions } from "./utils/swaggers"
 import { connectDB } from './config/database';
 import { logger } from './utils/loggers';
 import { errorHandler } from './middleware/errorHandler';
@@ -19,10 +19,10 @@ import { notFound} from './middleware/notfound'
 // Route imports
 import authRoutes from './routes/auth'
 import userRoutes from './routes/users';
-import itemRoutes from './routes/Items'
+import itemRoutes from './routes/Items';
 // import messageRoutes from '@/routes/messages';
-// import uploadRoutes from '@/routes/upload';
-import adminRoutes from './routes/admin'
+import uploadRoutes from './routes/upload';
+import adminRoutes from './routes/admin';
 
 // Socket handlers
 // import { initializeSocket } from '@/socket/socketHandler';
@@ -33,7 +33,7 @@ dotenv.config();
 
 const app = express();
 // Swagger documentation
-setupSwagger(app);
+
 
 const server = createServer(app);
 const io = new SocketIOServer(server, {
@@ -98,11 +98,12 @@ app.get('/health', (req, res) => {
 
 // API Routes
 const apiVersion = process.env.API_VERSION || 'v1';
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, swaggerUiOptions));
 app.use(`/api/${apiVersion}/auth`, authRoutes);
 app.use(`/api/${apiVersion}/users`, userRoutes);
 app.use(`/api/${apiVersion}/items`, itemRoutes);
 // app.use(`/api/${apiVersion}/messages`, messageRoutes);
-// app.use(`/api/${apiVersion}/upload`, uploadRoutes);
+app.use(`/api/${apiVersion}/upload`, uploadRoutes);
 app.use(`/api/${apiVersion}/admin`, adminRoutes);
 
 // Initialize Socket.IO
