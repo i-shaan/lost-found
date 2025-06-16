@@ -170,3 +170,72 @@
 {"level":"info","message":"Server running in development mode on port 5001","service":"lost-found-backend","timestamp":"2025-06-15T18:23:00.760Z"}
 {"level":"info","message":"API available at http://localhost:5001/api/v1","service":"lost-found-backend","timestamp":"2025-06-15T18:23:00.764Z"}
 {"level":"info","message":"MongoDB Connected: ac-kqt45f9-shard-00-01.rb0vq5e.mongodb.net","service":"lost-found-backend","timestamp":"2025-06-15T18:23:01.810Z"}
+{"level":"info","message":"Server running in development mode on port 5001","service":"lost-found-backend","timestamp":"2025-06-16T09:23:35.693Z"}
+{"level":"info","message":"API available at http://localhost:5001/api/v1","service":"lost-found-backend","timestamp":"2025-06-16T09:23:35.695Z"}
+{"level":"info","message":"MongoDB Connected: ac-kqt45f9-shard-00-02.rb0vq5e.mongodb.net","service":"lost-found-backend","timestamp":"2025-06-16T09:23:36.368Z"}
+{"level":"info","message":"Server running in development mode on port 5001","service":"lost-found-backend","timestamp":"2025-06-16T09:25:36.577Z"}
+{"level":"info","message":"API available at http://localhost:5001/api/v1","service":"lost-found-backend","timestamp":"2025-06-16T09:25:36.588Z"}
+{"level":"info","message":"MongoDB Connected: ac-kqt45f9-shard-00-01.rb0vq5e.mongodb.net","service":"lost-found-backend","timestamp":"2025-06-16T09:25:37.295Z"}
+{"level":"info","message":"Server running in development mode on port 5001","service":"lost-found-backend","timestamp":"2025-06-16T09:29:08.577Z"}
+{"level":"info","message":"API available at http://localhost:5001/api/v1","service":"lost-found-backend","timestamp":"2025-06-16T09:29:08.582Z"}
+{"level":"info","message":"MongoDB Connected: ac-kqt45f9-shard-00-00.rb0vq5e.mongodb.net","service":"lost-found-backend","timestamp":"2025-06-16T09:29:12.941Z"}
+{"level":"info","message":"Server running in development mode on port 5001","service":"lost-found-backend","timestamp":"2025-06-16T09:29:38.129Z"}
+{"level":"info","message":"API available at http://localhost:5001/api/v1","service":"lost-found-backend","timestamp":"2025-06-16T09:29:38.165Z"}
+{"level":"info","message":"MongoDB Connected: ac-kqt45f9-shard-00-02.rb0vq5e.mongodb.net","service":"lost-found-backend","timestamp":"2025-06-16T09:29:38.930Z"}
+{"level":"info","message":"Server running in development mode on port 5001","service":"lost-found-backend","timestamp":"2025-06-16T09:29:45.957Z"}
+{"level":"info","message":"API available at http://localhost:5001/api/v1","service":"lost-found-backend","timestamp":"2025-06-16T09:29:45.959Z"}
+{"level":"info","message":"MongoDB Connected: ac-kqt45f9-shard-00-02.rb0vq5e.mongodb.net","service":"lost-found-backend","timestamp":"2025-06-16T09:29:46.537Z"}
+{"level":"info","message":"Server running in development mode on port 5001","service":"lost-found-backend","timestamp":"2025-06-16T09:29:49.009Z"}
+{"level":"info","message":"API available at http://localhost:5001/api/v1","service":"lost-found-backend","timestamp":"2025-06-16T09:29:49.012Z"}
+{"level":"info","message":"MongoDB Connected: ac-kqt45f9-shard-00-02.rb0vq5e.mongodb.net","service":"lost-found-backend","timestamp":"2025-06-16T09:29:49.604Z"}
+{"level":"info","message":"Server running in development mode on port 5001","service":"lost-found-backend","timestamp":"2025-06-16T09:30:01.696Z"}
+{"level":"info","message":"API available at http://localhost:5001/api/v1","service":"lost-found-backend","timestamp":"2025-06-16T09:30:01.700Z"}
+{"level":"info","message":"MongoDB Connected: ac-kqt45f9-shard-00-01.rb0vq5e.mongodb.net","service":"lost-found-backend","timestamp":"2025-06-16T09:30:02.442Z"}
+{"level":"info","message":"Server running in development mode on port 5001","service":"lost-found-backend","timestamp":"2025-06-16T09:30:18.515Z"}
+{"level":"info","message":"API available at http://localhost:5001/api/v1","service":"lost-found-backend","timestamp":"2025-06-16T09:30:18.517Z"}
+{"level":"info","message":"MongoDB Connected: ac-kqt45f9-shard-00-02.rb0vq5e.mongodb.net","service":"lost-found-backend","timestamp":"2025-06-16T09:30:22.336Z"}
+{"level":"info","message":"Server running in development mode on port 5001","service":"lost-found-backend","timestamp":"2025-06-16T09:30:26.759Z"}
+{"level":"info","message":"API available at http://localhost:5001/api/v1","service":"lost-found-backend","timestamp":"2025-06-16T09:30:26.762Z"}
+{"level":"info","message":"MongoDB Connected: ac-kqt45f9-shard-00-02.rb0vq5e.mongodb.net","service":"lost-found-backend","timestamp":"2025-06-16T09:30:35.445Z"}
+{"level":"info","message":"::1 - - [16/Jun/2025:09:31:14 +0000] \"GET /api/user/profile HTTP/1.1\" 404 63 \"http://localhost:5001/api-docs/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36\"","service":"lost-found-backend","timestamp":"2025-06-16T09:31:14.875Z"}
+{"level":"info","message":"::1 - - [16/Jun/2025:09:31:49 +0000] \"POST /api/v1/auth/login HTTP/1.1\" 401 49 \"http://localhost:5001/api-docs/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36\"","service":"lost-found-backend","timestamp":"2025-06-16T09:31:49.789Z"}
+{"level":"info","message":"::1 - - [16/Jun/2025:09:31:58 +0000] \"POST /api/v1/auth/login HTTP/1.1\" 200 356 \"http://localhost:5001/api-docs/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36\"","service":"lost-found-backend","timestamp":"2025-06-16T09:31:58.579Z"}
+{"level":"info","message":"::1 - - [16/Jun/2025:09:32:38 +0000] \"GET /api/user/profile HTTP/1.1\" 404 63 \"http://localhost:5001/api-docs/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36\"","service":"lost-found-backend","timestamp":"2025-06-16T09:32:38.339Z"}
+{"level":"info","message":"::1 - - [16/Jun/2025:09:32:39 +0000] \"GET /api/user/profile HTTP/1.1\" 404 63 \"http://localhost:5001/api-docs/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36\"","service":"lost-found-backend","timestamp":"2025-06-16T09:32:39.501Z"}
+{"level":"info","message":"::1 - - [16/Jun/2025:09:32:40 +0000] \"GET /api/user/profile HTTP/1.1\" 404 63 \"http://localhost:5001/api-docs/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36\"","service":"lost-found-backend","timestamp":"2025-06-16T09:32:40.233Z"}
+{"level":"info","message":"::1 - - [16/Jun/2025:09:52:42 +0000] \"DELETE /api/user/account HTTP/1.1\" 404 63 \"http://localhost:5001/api-docs/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36\"","service":"lost-found-backend","timestamp":"2025-06-16T09:52:42.884Z"}
+{"level":"info","message":"Server running in development mode on port 5001","service":"lost-found-backend","timestamp":"2025-06-16T09:55:28.578Z"}
+{"level":"info","message":"API available at http://localhost:5001/api/v1","service":"lost-found-backend","timestamp":"2025-06-16T09:55:28.581Z"}
+{"level":"info","message":"MongoDB Connected: ac-kqt45f9-shard-00-01.rb0vq5e.mongodb.net","service":"lost-found-backend","timestamp":"2025-06-16T09:55:29.182Z"}
+{"level":"info","message":"::1 - - [16/Jun/2025:09:55:37 +0000] \"GET /api/user/profile HTTP/1.1\" 404 63 \"http://localhost:5001/api-docs/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36\"","service":"lost-found-backend","timestamp":"2025-06-16T09:55:37.386Z"}
+{"level":"info","message":"::1 - - [16/Jun/2025:09:56:42 +0000] \"POST /api/v1/auth/login HTTP/1.1\" 200 356 \"http://localhost:5001/api-docs/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36\"","service":"lost-found-backend","timestamp":"2025-06-16T09:56:42.220Z"}
+{"level":"info","message":"::1 - - [16/Jun/2025:09:57:38 +0000] \"GET /api/user/profile HTTP/1.1\" 404 63 \"http://localhost:5001/api-docs/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36\"","service":"lost-found-backend","timestamp":"2025-06-16T09:57:38.604Z"}
+{"level":"info","message":"Server running in development mode on port 5001","service":"lost-found-backend","timestamp":"2025-06-16T09:58:15.658Z"}
+{"level":"info","message":"API available at http://localhost:5001/api/v1","service":"lost-found-backend","timestamp":"2025-06-16T09:58:15.662Z"}
+{"level":"info","message":"MongoDB Connected: ac-kqt45f9-shard-00-02.rb0vq5e.mongodb.net","service":"lost-found-backend","timestamp":"2025-06-16T09:58:16.266Z"}
+{"level":"info","message":"Server running in development mode on port 5001","service":"lost-found-backend","timestamp":"2025-06-16T09:58:22.770Z"}
+{"level":"info","message":"API available at http://localhost:5001/api/v1","service":"lost-found-backend","timestamp":"2025-06-16T09:58:22.772Z"}
+{"level":"info","message":"MongoDB Connected: ac-kqt45f9-shard-00-01.rb0vq5e.mongodb.net","service":"lost-found-backend","timestamp":"2025-06-16T09:58:23.365Z"}
+{"level":"info","message":"Server running in development mode on port 5001","service":"lost-found-backend","timestamp":"2025-06-16T09:58:30.118Z"}
+{"level":"info","message":"API available at http://localhost:5001/api/v1","service":"lost-found-backend","timestamp":"2025-06-16T09:58:30.122Z"}
+{"level":"info","message":"MongoDB Connected: ac-kqt45f9-shard-00-01.rb0vq5e.mongodb.net","service":"lost-found-backend","timestamp":"2025-06-16T09:58:30.786Z"}
+{"level":"info","message":"Server running in development mode on port 5001","service":"lost-found-backend","timestamp":"2025-06-16T09:58:34.053Z"}
+{"level":"info","message":"API available at http://localhost:5001/api/v1","service":"lost-found-backend","timestamp":"2025-06-16T09:58:34.058Z"}
+{"level":"info","message":"MongoDB Connected: ac-kqt45f9-shard-00-00.rb0vq5e.mongodb.net","service":"lost-found-backend","timestamp":"2025-06-16T09:58:34.782Z"}
+{"level":"info","message":"Server running in development mode on port 5001","service":"lost-found-backend","timestamp":"2025-06-16T09:58:38.743Z"}
+{"level":"info","message":"API available at http://localhost:5001/api/v1","service":"lost-found-backend","timestamp":"2025-06-16T09:58:38.746Z"}
+{"level":"info","message":"MongoDB Connected: ac-kqt45f9-shard-00-00.rb0vq5e.mongodb.net","service":"lost-found-backend","timestamp":"2025-06-16T09:58:39.285Z"}
+{"level":"info","message":"Server running in development mode on port 5001","service":"lost-found-backend","timestamp":"2025-06-16T09:59:00.581Z"}
+{"level":"info","message":"API available at http://localhost:5001/api/v1","service":"lost-found-backend","timestamp":"2025-06-16T09:59:00.584Z"}
+{"level":"info","message":"MongoDB Connected: ac-kqt45f9-shard-00-02.rb0vq5e.mongodb.net","service":"lost-found-backend","timestamp":"2025-06-16T09:59:01.229Z"}
+{"level":"info","message":"::1 - - [16/Jun/2025:09:59:06 +0000] \"GET /api/user/profile HTTP/1.1\" 404 63 \"http://localhost:5001/api-docs/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36\"","service":"lost-found-backend","timestamp":"2025-06-16T09:59:06.364Z"}
+{"level":"info","message":"::1 - - [16/Jun/2025:09:59:10 +0000] \"GET /api/user/profile HTTP/1.1\" 404 63 \"http://localhost:5001/api-docs/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36\"","service":"lost-found-backend","timestamp":"2025-06-16T09:59:10.520Z"}
+{"level":"info","message":"Server running in development mode on port 5001","service":"lost-found-backend","timestamp":"2025-06-16T09:59:24.436Z"}
+{"level":"info","message":"API available at http://localhost:5001/api/v1","service":"lost-found-backend","timestamp":"2025-06-16T09:59:24.438Z"}
+{"level":"info","message":"MongoDB Connected: ac-kqt45f9-shard-00-00.rb0vq5e.mongodb.net","service":"lost-found-backend","timestamp":"2025-06-16T09:59:24.994Z"}
+{"level":"info","message":"::1 - - [16/Jun/2025:10:00:01 +0000] \"POST /api/v1/auth/login HTTP/1.1\" 200 356 \"http://localhost:5001/api-docs/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36\"","service":"lost-found-backend","timestamp":"2025-06-16T10:00:01.052Z"}
+{"level":"info","message":"::1 - - [16/Jun/2025:10:00:16 +0000] \"GET /api/v1/users/profile HTTP/1.1\" 200 389 \"http://localhost:5001/api-docs/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36\"","service":"lost-found-backend","timestamp":"2025-06-16T10:00:16.802Z"}
+{"level":"info","message":"::1 - - [16/Jun/2025:10:09:11 +0000] \"GET /api/v1/users/profile HTTP/1.1\" 401 54 \"http://localhost:5001/api-docs/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36\"","service":"lost-found-backend","timestamp":"2025-06-16T10:09:11.079Z"}
+{"level":"info","message":"::1 - - [16/Jun/2025:10:09:24 +0000] \"GET /api/v1/users/profile HTTP/1.1\" 304 - \"http://localhost:5001/api-docs/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36\"","service":"lost-found-backend","timestamp":"2025-06-16T10:09:24.073Z"}
+{"level":"info","message":"::1 - - [16/Jun/2025:10:11:12 +0000] \"GET /api/v1/users/items HTTP/1.1\" 200 91 \"http://localhost:5001/api-docs/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36\"","service":"lost-found-backend","timestamp":"2025-06-16T10:11:12.313Z"}
+{"level":"info","message":"::1 - - [16/Jun/2025:10:11:28 +0000] \"GET /api/v1/users/stats HTTP/1.1\" 200 144 \"http://localhost:5001/api-docs/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36\"","service":"lost-found-backend","timestamp":"2025-06-16T10:11:28.081Z"}

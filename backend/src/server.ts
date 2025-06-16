@@ -18,11 +18,11 @@ import { notFound} from './middleware/notfound'
 
 // Route imports
 import authRoutes from './routes/auth'
-// import userRoutes from '@/routes/users';
-// import itemRoutes from '@/routes/items';
+import userRoutes from './routes/users';
+import itemRoutes from './routes/Items'
 // import messageRoutes from '@/routes/messages';
 // import uploadRoutes from '@/routes/upload';
-// import adminRoutes from '@/routes/admin';
+import adminRoutes from './routes/admin'
 
 // Socket handlers
 // import { initializeSocket } from '@/socket/socketHandler';
@@ -99,11 +99,11 @@ app.get('/health', (req, res) => {
 // API Routes
 const apiVersion = process.env.API_VERSION || 'v1';
 app.use(`/api/${apiVersion}/auth`, authRoutes);
-// app.use(`/api/${apiVersion}/users`, userRoutes);
-// app.use(`/api/${apiVersion}/items`, itemRoutes);
+app.use(`/api/${apiVersion}/users`, userRoutes);
+app.use(`/api/${apiVersion}/items`, itemRoutes);
 // app.use(`/api/${apiVersion}/messages`, messageRoutes);
 // app.use(`/api/${apiVersion}/upload`, uploadRoutes);
-// app.use(`/api/${apiVersion}/admin`, adminRoutes);
+app.use(`/api/${apiVersion}/admin`, adminRoutes);
 
 // Initialize Socket.IO
 // initializeSocket(io);
