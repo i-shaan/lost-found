@@ -1,5 +1,7 @@
 import nodemailer from 'nodemailer';
 import { logger } from '../utils/loggers';
+import dotenv from 'dotenv';
+dotenv.config();
 
 interface EmailOptions {
   to: string;
@@ -7,16 +9,18 @@ interface EmailOptions {
   template: string;
   data: any;
 }
+console.log('SMTP Host: ', process.env.SMTP_PASS,process.env.SMTP_USER);  // Should print smtp.gmail.com
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: false,
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,           // Set true for port 465 (SSL)
   auth: {
     user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    pass: 'esvvbzrjynrzmwxn',
   },
 });
+
 
 const emailTemplates = {
   welcome: (data: any) => `

@@ -1,77 +1,53 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import { User } from '../models/Users';
-import { logger } from '../utils/loggers';
+import jwt, { JwtPayload } from 'jsonwebtoken';
+import User from '../models/Users';
 
-interface JwtPayload {
-  userId: string;
-  iat: number;
-  exp: number;
+interface AuthenticatedRequest extends Request {
+  user?: any;
 }
 
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        id: string;
-        role: string;
-      };
-    }
-  }
-}
-
-export const auth = async (req: Request, res: Response, next: NextFunction) => {
+const auth = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
+    let token: string | undefined;
+
+    // 1. Check Authorization header
+    const authHeader = req.header('Authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      token = authHeader.replace('Bearer ', '');
+    }
+
+    // 2. If not in header, check cookies
+    if (!token && req.cookies?.token) {
+      token = req.cookies.token;
+    }
 
     if (!token) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
-        message: 'Access token is required'
+        message: 'Access denied. No token provided.'
       });
+      return;
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
-    const user = await User.findById(decoded.userId) as { _id: string; role: string; isActive: boolean };
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload & { id: string };
 
-    if (!user || !user.isActive) {
-      return res.status(401).json({
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      res.status(401).json({
         success: false,
-        message: 'Invalid token'
+        message: 'Invalid token.'
       });
+      return;
     }
 
-    req.user = {
-      id: user._id.toString(),
-      role: user.role
-    };
-
+    req.user = user;
     next();
   } catch (error) {
-    logger.error('Auth middleware error:', error);
     res.status(401).json({
       success: false,
-      message: 'Invalid token'
+      message: 'Invalid token.'
     });
   }
 };
 
-export const adminAuth = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    await auth(req, res, () => {
-      if (req.user?.role !== 'admin') {
-        return res.status(403).json({
-          success: false,
-          message: 'Admin access required'
-        });
-      }
-      next();
-    });
-  } catch (error) {
-    logger.error('Admin auth middleware error:', error);
-    res.status(403).json({
-      success: false,
-      message: 'Admin access required'
-    });
-  }
-};
+export default auth;

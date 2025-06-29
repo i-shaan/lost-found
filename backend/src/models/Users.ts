@@ -1,95 +1,122 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Model } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-export interface IUser extends Document {
-  name: string;
-  email: string;
-  password: string;
-  phone?: string;
-  avatar?: string;
-  role: 'user' | 'admin';
-  location?: {
-    type: 'Point';
-    coordinates: [number, number];
-    address?: string;
-  };
-  emailVerified: boolean;
-  phoneVerified: boolean;
-  isActive: boolean;
-  lastLogin?: Date;
-  createdAt: Date;
-  updatedAt: Date;
-  comparePassword(candidatePassword: string): Promise<boolean>;
+interface NotificationPreferences {
+  email: boolean;
+  push: boolean;
+  sms: boolean;
 }
 
-const UserSchema = new Schema<IUser>({
-  name: {
-    type: String,
-    required: [true, 'Name is required'],
-    trim: true,
-    maxlength: [50, 'Name cannot exceed 50 characters']
-  },
-  email: {
-    type: String,
-    required: [true, 'Email is required'],
-    unique: true,
-    lowercase: true,
-    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
-  },
-  password: {
-    type: String,
-    required: [true, 'Password is required'],
-    minlength: [6, 'Password must be at least 6 characters'],
-    select: false
-  },
-  phone: {
-    type: String,
-    match: [/^\+?[\d\s-()]+$/, 'Please enter a valid phone number']
-  },
-  avatar: String,
-  role: {
-    type: String,
-    enum: ['user', 'admin'],
-    default: 'user'
-  },
-  location: {
-    type: {
+interface Location {
+  name?: string;
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
+}
+
+export interface IUser extends Document {
+  email: string;
+  password: string;
+  name: string;
+  phone?: string;
+  avatar?: string;
+  isVerified: boolean;
+  notificationPreferences: NotificationPreferences;
+  location?: Location;
+  reputation: number;
+  itemsPosted: number;
+  itemsResolved: number;
+  lastActive: Date;
+  createdAt: Date;
+  updatedAt: Date;
+
+  comparePassword(candidatePassword: string): Promise<boolean>;
+  updateLastActive(): Promise<IUser>;
+}
+
+const userSchema = new Schema<IUser>(
+  {
+    email: {
       type: String,
-      enum: ['Point'],
-      default: 'Point'
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true
     },
-    coordinates: {
-      type: [Number],
-      default: [0, 0]
+    password: {
+      type: String,
+      required: true,
+      minlength: 6
     },
-    address: String
+    name: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    phone: {
+      type: String,
+      sparse: true
+    },
+    avatar: {
+      type: String
+    },
+    isVerified: {
+      type: Boolean,
+      default: false
+    },
+    notificationPreferences: {
+      email: {
+        type: Boolean,
+        default: true
+      },
+      push: {
+        type: Boolean,
+        default: true
+      },
+      sms: {
+        type: Boolean,
+        default: false
+      }
+    },
+    location: {
+      name: {
+        type: String
+      },
+      coordinates: {
+        lat: {
+          type: Number
+        },
+        lng: {
+          type: Number
+        }
+      }
+    },
+    reputation: {
+      type: Number,
+      default: 0
+    },
+    itemsPosted: {
+      type: Number,
+      default: 0
+    },
+    itemsResolved: {
+      type: Number,
+      default: 0
+    },
+    lastActive: {
+      type: Date,
+      default: Date.now
+    }
   },
-  emailVerified: {
-    type: Boolean,
-    default: false
-  },
-  phoneVerified: {
-    type: Boolean,
-    default: false
-  },
-  isActive: {
-    type: Boolean,
-    default: true
-  },
-  lastLogin: Date
-}, {
-  timestamps: true,
-});
+  {
+    timestamps: true
+  }
+);
 
-// Indexes
-UserSchema.index({ location: '2dsphere' });
-UserSchema.index({ email: 1 });
-UserSchema.index({ role: 1 });
-
-// Hash password before saving
-UserSchema.pre('save', async function(next) {
+userSchema.pre<IUser>('save', async function (next) {
   if (!this.isModified('password')) return next();
-  
+
   try {
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
@@ -99,16 +126,16 @@ UserSchema.pre('save', async function(next) {
   }
 });
 
-// Compare password method
-UserSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
+userSchema.methods.comparePassword = async function (
+  candidatePassword: string
+): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-// Remove password from JSON output
-UserSchema.methods.toJSON = function() {
-  const userObject = this.toObject();
-  delete userObject.password;
-  return userObject;
+userSchema.methods.updateLastActive = function (): Promise<IUser> {
+  this.lastActive = new Date();
+  return this.save();
 };
 
-export const User = mongoose.model<IUser>('User', UserSchema);
+const User: Model<IUser> = mongoose.model<IUser>('User', userSchema);
+export default User;

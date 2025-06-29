@@ -1,651 +1,843 @@
-import { Request, Response } from 'express';
-import { Item } from '../models/Item';
-import { User } from '../models/Users';
+import { Response, Request } from 'express';
+import { validationResult } from 'express-validator';
+import { ItemModel } from '../models/Item';
+import User from '../models/Users';
+import { aiService } from '../services/aiService';
+import notificationService from '../services/notificationService';
 import { logger } from '../utils/loggers';
-import { aiClient } from '../services/aiService';
-import { uploadToCloudinary } from '../utils/cloudinary';
+import { MatchResult } from '../types';
+import mongoose from 'mongoose';
+import fs from 'fs';
+import path from 'path';
+const { Types } = mongoose;
+import { Server as SocketIOServer } from 'socket.io';
+import { ParsedQs } from 'qs';
 
-export const createItem = async (req: Request, res: Response) => {
+export interface GetItemsQuery extends ParsedQs {
+  type?: 'lost' | 'found';
+  category?: string;
+  status?: 'active' | 'inactive' | 'archived';
+  search?: string;
+  location?: string;
+  page?: string;
+  limit?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+interface CustomRequest extends Request<{ id?: string }, any, any, GetItemsQuery> {
+  user?: {
+    id: string;
+    _id: string;
+  };
+  io: SocketIOServer;
+}
+
+// Helper function to validate MongoDB ObjectId
+const isValidObjectId = (id: string): boolean => {
+  return mongoose.Types.ObjectId.isValid(id) && /^[0-9a-fA-F]{24}$/.test(id);
+};
+
+// Helper function to safely delete files
+const safeDeleteFile = (filePath: string): void => {
   try {
-    const {
-      title,
-      description,
-      category,
-      type,
-      location,
-      dateLostFound,
-      tags,
-      reward,
-      contactPreference
-    } = req.body;
-
-    // Handle image uploads
-    let imageUrls: string[] = [];
-    if (req.files && Array.isArray(req.files)) {
-      try {
-        const uploadPromises = req.files.map(async (file: Express.Multer.File) => {
-          const result = await uploadToCloudinary(file.buffer, {
-            folder: 'lost-found/items',
-            transformation: [
-              { width: 800, height: 600, crop: 'limit' },
-              { quality: 'auto' },
-              { format: 'webp' }
-            ]
-          });
-          return result.secure_url;
-        });
-        
-        imageUrls = await Promise.all(uploadPromises);
-      } catch (uploadError) {
-        logger.error('Image upload failed:', uploadError);
-        return res.status(400).json({
-          success: false,
-          message: 'Failed to upload images'
-        });
-      }
+    const fullPath = path.isAbsolute(filePath) ? filePath : path.join(process.cwd(), filePath);
+    if (fs.existsSync(fullPath)) {
+      fs.unlinkSync(fullPath);
     }
+  } catch (error) {
+    logger.warn(`Failed to delete file: ${filePath}`, error);
+  }
+};
 
-    // Parse location if it's a string
-    let parsedLocation;
+// Helper function to safely parse numeric query parameters
+const parseNumericQuery = (value: string | undefined, defaultValue: number, min?: number, max?: number): number => {
+  if (!value) return defaultValue;
+  const parsed = parseInt(value, 10);
+  if (isNaN(parsed)) return defaultValue;
+  if (min !== undefined && parsed < min) return min;
+  if (max !== undefined && parsed > max) return max;
+  return parsed;
+};
+
+class ItemController {
+  async createItem(req: CustomRequest, res: Response): Promise<void> {
     try {
-      parsedLocation = typeof location === 'string' ? JSON.parse(location) : location;
-    } catch (error) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid location format'
-      });
-    }
-
-    // Parse tags if it's a string
-    let parsedTags = [];
-    try {
-      parsedTags = typeof tags === 'string' ? JSON.parse(tags) : (tags || []);
-    } catch (error) {
-      parsedTags = [];
-    }
-
-    // Create new item
-    const item = new Item({
-      title,
-      description,
-      category,
-      type,
-      images: imageUrls,
-      location: parsedLocation,
-      dateLostFound: dateLostFound ? new Date(dateLostFound) : undefined,
-      reporter: req.user!.id,
-      tags: parsedTags,
-      reward: reward ? parseFloat(reward) : undefined,
-      contactPreference: contactPreference || 'platform'
-    });
-
-    // Process with AI services if available
-    try {
-      // Analyze text description
-      const textAnalysis = await aiClient.analyzeText(description);
+      logger.info('Request body:', req.body);
+      logger.info('Request files:', req.files);
+      logger.info('Content-Type:', req.headers['content-type']);
       
-      // Analyze images if provided
-      let imageAnalysis = null;
-      if (imageUrls.length > 0) {
-        imageAnalysis = await aiClient.analyzeImage(imageUrls[0]);
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        logger.info('Validation errors:', errors.array()); // Add this line
+        res.status(400).json({
+          success: false,
+          errors: errors.array()
+        });
+        return;
       }
 
-      // Auto-categorize if not provided
-      if (!category) {
-        const suggestedCategory = await aiClient.categorizeItem(description, imageUrls[0]);
-        item.category = suggestedCategory;
+      const {
+        title,
+        description,
+        category,
+        type,
+        location,
+        dateLostFound,
+        reward,
+        contactPreference
+      } = req.body;
+
+      // Validate required fields
+      if (!title?.trim() || !description?.trim() || !category || !type || !location?.trim()) {
+        res.status(400).json({
+          success: false,
+          message: 'Missing required fields: title, description, category, type, and location are required'
+        });
+        return;
       }
 
-      // Store AI metadata
-      item.aiMetadata = {
-        textEmbedding: textAnalysis.embedding,
-        imageFeatures: imageAnalysis?.features,
-        confidence: imageAnalysis?.confidence || textAnalysis.confidence,
-        category: textAnalysis.category
-      };
-
-      // Extract additional tags from AI analysis
-      if (textAnalysis.keywords) {
-        item.tags = [...new Set([...item.tags, ...textAnalysis.keywords])];
+      // Validate date
+      const parsedDate = new Date(dateLostFound);
+      if (isNaN(parsedDate.getTime())) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid date format for dateLostFound'
+        });
+        return;
       }
 
-    } catch (aiError) {
-      logger.warn('AI processing failed, continuing without AI features:', aiError);
-    }
+      const images = req.files ? (req.files as Express.Multer.File[]).map(file => file.path) : [];
 
-    await item.save();
+      // Step 1: Analyze item with AI
+      logger.info(`Starting AI analysis for ${type} item: ${title}`);
+      const aiAnalysis = await aiService.analyzeItem({
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        images,
+      });
 
-    // Populate reporter information
-    await item.populate('reporter', 'name email avatar');
+      // Step 2: Create item with AI metadata
+      const newItem = new ItemModel({
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        type,
+        images,
+        location: location.trim(),
+        dateLostFound: parsedDate,
+        reporter: req.user?.id,
+        reward: reward || 0,
+        contactPreference: contactPreference || 'platform',
+        aiMetadata: aiAnalysis,
+        status: 'active'
+      });
 
-    // Find potential matches
-    try {
-      const matches = await findPotentialMatches(item);
+      const savedItem = await newItem.save();
+
+      // Step 3: Find matches using AI services
+      logger.info(`Finding AI-powered matches for ${type} item: ${savedItem._id}`);
+      const oppositeType = type === 'lost' ? 'found' : 'lost';
+      const matches = await aiService.findSimilarItems(savedItem, oppositeType);
+
+      // Step 4: Update item with matches and notify users
       if (matches.length > 0) {
-        item.matches = matches.map(match => match.itemId);
-        await item.save();
+        savedItem.matches = matches.map((match: MatchResult) => ({
+          itemId: new Types.ObjectId(match.item_id),
+          confidence: match.confidence,
+          reasons: match.reasons,
+          createdAt: new Date()
+        }));
+        await savedItem.save();
+
+        // Send notifications to matched item owners
+        await notificationService.notifyMatches(savedItem, matches, req.io);
       }
-    } catch (matchError) {
-      logger.warn('Match finding failed:', matchError);
+
+      // Step 5: Update user statistics
+      await User.findByIdAndUpdate(req.user?.id, {
+        $inc: { itemsPosted: 1 }
+      });
+
+      res.status(201).json({
+        success: true,
+        data: {
+          item: savedItem,
+          matches: matches,
+          matchCount: matches.length
+        },
+        message: `${type.charAt(0).toUpperCase() + type.slice(1)} item created successfully${matches.length > 0 ? ` with ${matches.length} potential matches found` : ''}`
+      });
+
+    } catch (error) {
+      logger.error('Error creating item:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to create item',
+        error: process.env.NODE_ENV === 'development' ? (error as Error).message : 'Internal server error'
+      });
     }
-
-    res.status(201).json({
-      success: true,
-      message: 'Item created successfully',
-      data: { item }
-    });
-
-  } catch (error) {
-    logger.error('Create item error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create item'
-    });
   }
-};
 
-export const updateItem = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const updates = req.body;
-
-    const item = await Item.findById(id);
-
-    if (!item) {
-      return res.status(404).json({
+  async getItems(req: CustomRequest, res: Response): Promise<void> {
+    try {
+      const {
+        type,
+        category,
+        status = 'active',
+        search,
+        location,
+        page = '1',
+        limit = '20',
+        sortBy = 'createdAt',
+        sortOrder = 'desc',
+      } = req.query;
+  
+      const query: any = { status };
+  
+      if (type && ['lost', 'found'].includes(type)) {
+        query.type = type;
+      }
+      if (category) query.category = category;
+      if (location?.trim()) {
+        query.location = { $regex: location.trim(), $options: 'i' };
+      }
+  
+      if (search?.trim()) {
+        query.$or = [
+          { title: { $regex: search.trim(), $options: 'i' } },
+          { description: { $regex: search.trim(), $options: 'i' } },
+          { tags: { $in: [new RegExp(search.trim(), 'i')] } }
+        ];
+      }
+  
+      const pageNum = parseNumericQuery(page, 1, 1);
+      const limitNum = parseNumericQuery(limit, 20, 1, 100);
+      const sortDirection = sortOrder === 'desc' ? -1 : 1;
+      
+      // Validate sortBy field
+      const allowedSortFields = ['createdAt', 'updatedAt', 'title', 'dateLostFound', 'views'];
+      const sortField = allowedSortFields.includes(sortBy) ? sortBy : 'createdAt';
+  
+      const options = {
+        page: pageNum,
+        limit: limitNum,
+        sort: { [sortField]: sortDirection },
+        populate: {
+          path: 'reporter',
+          select: 'name avatar reputation',
+        },
+      };
+  
+      const items = await (ItemModel as any).paginate(query, options);
+  
+      res.json({
+        success: true,
+        data: items,
+      });
+    } catch (error) {
+      logger.error('Error fetching items:', error);
+      res.status(500).json({
         success: false,
-        message: 'Item not found'
+        message: 'Failed to fetch items',
+        error: process.env.NODE_ENV === 'development' ? (error as Error).message : 'Internal server error',
       });
     }
+  }
 
-    // Check ownership
-    if (item.reporter.toString() !== req.user!.id) {
-      return res.status(403).json({
+  async getUserItems(req: CustomRequest, res: Response): Promise<void> {
+    try {
+      const {
+        status,
+        type,
+        page = '1',
+        limit = '20',
+        sortBy = 'createdAt',
+        sortOrder = 'desc'
+      } = req.query;
+
+      const query: any = { reporter: req.user?.id };
+      
+      if (status && ['active', 'inactive', 'archived', 'resolved'].includes(status)) {
+        query.status = status;
+      }
+      if (type && ['lost', 'found'].includes(type)) {
+        query.type = type;
+      }
+
+      const pageNum = parseNumericQuery(page, 1, 1);
+      const limitNum = parseNumericQuery(limit, 20, 1, 100);
+      const sortDirection = sortOrder === 'desc' ? -1 : 1;
+      
+      const allowedSortFields = ['createdAt', 'updatedAt', 'title', 'dateLostFound'];
+      const sortField = allowedSortFields.includes(sortBy) ? sortBy : 'createdAt';
+
+      const options = {
+        page: pageNum,
+        limit: limitNum,
+        sort: { [sortField]: sortDirection },
+        populate: [
+          {
+            path: 'matches.itemId',
+            select: 'title description images type category location dateLostFound status'
+          }
+        ]
+      };
+
+      const items = await (ItemModel as any).paginate(query, options);
+
+      // Add statistics
+      const stats = await ItemModel.aggregate([
+        { $match: { reporter: new Types.ObjectId(req.user?.id) } },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            active: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } },
+            resolved: { $sum: { $cond: [{ $eq: ['$status', 'resolved'] }, 1, 0] } },
+            lost: { $sum: { $cond: [{ $eq: ['$type', 'lost'] }, 1, 0] } },
+            found: { $sum: { $cond: [{ $eq: ['$type', 'found'] }, 1, 0] } }
+          }
+        }
+      ]);
+
+      res.json({
+        success: true,
+        data: {
+          ...items,
+          stats: stats[0] || { total: 0, active: 0, resolved: 0, lost: 0, found: 0 }
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error fetching user items:', error);
+      res.status(500).json({
         success: false,
-        message: 'Not authorized to update this item'
+        message: 'Failed to fetch user items',
+        error: process.env.NODE_ENV === 'development' ? (error as Error).message : 'Internal server error'
       });
     }
+  }
 
-    // Handle new image uploads
-    let newImageUrls: string[] = [];
-    if (req.files && Array.isArray(req.files)) {
-      try {
-        const uploadPromises = req.files.map(async (file: Express.Multer.File) => {
-          const result = await uploadToCloudinary(file.buffer, {
-            folder: 'lost-found/items',
-            transformation: [
-              { width: 800, height: 600, crop: 'limit' },
-              { quality: 'auto' },
-              { format: 'webp' }
-            ]
-          });
-          return result.secure_url;
+  async getItemById(req: CustomRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      
+      if (!id || !isValidObjectId(id)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid or missing item ID'
         });
+        return;
+      }
+      
+      const item = await ItemModel.findById(id)
+        .populate('reporter', 'name avatar reputation')
+        .populate('matches.itemId', 'title description images type category location dateLostFound status');
+
+      if (!item) {
+        res.status(404).json({
+          success: false,
+          message: 'Item not found'
+        });
+        return;
+      }
+
+      // Increment view count if not the owner
+      if (item.reporter._id.toString() !== req.user?.id) {
+        await ItemModel.findByIdAndUpdate(id, { $inc: { views: 1 } });
+        item.views = (item.views || 0) + 1;
+      }
+
+      res.json({
+        success: true,
+        data: item
+      });
+
+    } catch (error) {
+      logger.error('Error fetching item:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch item',
+        error: process.env.NODE_ENV === 'development' ? (error as Error).message : 'Internal server error'
+      });
+    }
+  }
+
+  async getItemMatches(req: CustomRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { limit = '10', threshold = '0.5' } = req.query;
+  
+      if (!id || !isValidObjectId(id)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid or missing item ID'
+        });
+        return;
+      }
+  
+      const item = await ItemModel.findById(id);
+      if (!item) {
+        res.status(404).json({
+          success: false,
+          message: 'Item not found'
+        });
+        return;
+      }
+  
+      // Check if user owns the item
+      if (item.reporter.toString() !== req.user?.id) {
+        res.status(403).json({
+          success: false,
+          message: 'Not authorized to view matches for this item'
+        });
+        return;
+      }
+
+      const limitNum = parseNumericQuery(limit, 10, 1, 50);
+      const thresholdNum = typeof threshold === 'string' ? parseFloat(threshold) || 0.5 : 0.5;
+      
+      if (thresholdNum < 0 || thresholdNum > 1) {
+        res.status(400).json({
+          success: false,
+          message: 'Threshold must be between 0 and 1'
+        });
+        return;
+      }
+  
+      // Populate the entire item with matches populated
+      const populatedItem = await ItemModel.findById(id).populate({
+        path: 'matches.itemId',
+        select: 'title description images type category location dateLostFound status reporter',
+        populate: {
+          path: 'reporter',
+          select: 'name avatar reputation'
+        }
+      });
+  
+      if (!populatedItem) {
+        res.status(404).json({
+          success: false,
+          message: 'Item not found'
+        });
+        return;
+      }
+  
+      // Filter and map the populated matches
+      const matchesWithSimilarity = populatedItem.matches
+        ?.filter(match => match.confidence >= thresholdNum)
+        .slice(0, limitNum)
+        .map(match => ({
+          item: match.itemId,
+          similarity: match.confidence,
+          reasons: match.reasons,
+          matchedAt: match.createdAt
+        })) || [];
+  
+      res.json({
+        success: true,
+        data: {
+          itemId: id,
+          matches: matchesWithSimilarity,
+          totalMatches: item.matches?.length || 0,
+          filteredCount: matchesWithSimilarity.length
+        }
+      });
+  
+    } catch (error) {
+      logger.error('Error getting item matches:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
+    }
+  }
+
+  async updateItem(req: CustomRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const errors = validationResult(req);
+      
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          errors: errors.array()
+        });
+        return;
+      }
+  
+      if (!id || !isValidObjectId(id)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid or missing item ID'
+        });
+        return;
+      }
+  
+      const item = await ItemModel.findById(id);
+      if (!item) {
+        res.status(404).json({
+          success: false,
+          message: 'Item not found'
+        });
+        return;
+      }
+  
+      // Check if user owns the item
+      if (item.reporter.toString() !== req.user?.id) {
+        res.status(403).json({
+          success: false,
+          message: 'Not authorized to update this item'
+        });
+        return;
+      }
+  
+      const {
+        title,
+        description,
+        category,
+        location,
+        dateLostFound,
+        tags,
+        reward,
+        contactPreference,
+        removeImages
+      } = req.body;
+  
+      // Initialize images array if it doesn't exist
+      if (!item.images) {
+        item.images = [];
+      }
+  
+      // Handle image removal
+      if (removeImages && Array.isArray(removeImages)) {
+        for (const imageUrl of removeImages) {
+          safeDeleteFile(imageUrl);
+        }
+        item.images = item.images.filter(img => !removeImages.includes(img));
+      }
+  
+      // Handle new images
+      const newImages = req.files ? (req.files as Express.Multer.File[]).map(file => file.path) : [];
+      if (newImages.length > 0) {
+        item.images = [...item.images, ...newImages];
+      }
+  
+      // Track if significant changes were made
+      let significantChange = false;
+  
+      // Update fields with validation
+      if (title && title.trim() !== item.title) {
+        item.title = title.trim();
+        significantChange = true;
+      }
+      if (description && description.trim() !== item.description) {
+        item.description = description.trim();
+        significantChange = true;
+      }
+      if (category && category !== item.category) {
+        item.category = category;
+        significantChange = true;
+      }
+      if (location && location.trim() !== item.location) {
+        item.location = location.trim();
+      }
+      if (dateLostFound) {
+        const parsedDate = new Date(dateLostFound);
+        if (!isNaN(parsedDate.getTime())) {
+          item.dateLostFound = parsedDate;
+        }
+      }
+      if (tags && Array.isArray(tags)) {
+        item.tags = tags;
+      }
+      if (reward !== undefined) {
+        item.reward = Math.max(0, Number(reward) || 0);
+      }
+      if (contactPreference && ['platform', 'email', 'phone'].includes(contactPreference)) {
+        item.contactPreference = contactPreference;
+      }
+  
+      item.updatedAt = new Date();
+  
+      // Re-analyze with AI if content changed significantly
+      if (significantChange || newImages.length > 0) {
+        logger.info(`Re-analyzing updated item: ${item._id}`);
+        const aiAnalysis = await aiService.analyzeItem({
+          title: item.title,
+          description: item.description,
+          category: item.category,
+          images: item.images || [],
+          tags: item.tags || []
+        });
+        item.aiMetadata = aiAnalysis;
+  
+        // Find new matches
+        const oppositeType = item.type === 'lost' ? 'found' : 'lost';
+        const matches = await aiService.findSimilarItems(item, oppositeType);
         
-        newImageUrls = await Promise.all(uploadPromises);
-      } catch (uploadError) {
-        logger.error('Image upload failed:', uploadError);
-        return res.status(400).json({
-          success: false,
-          message: 'Failed to upload new images'
-        });
-      }
-    }
-
-    // Parse location if it's a string
-    if (updates.location && typeof updates.location === 'string') {
-      try {
-        updates.location = JSON.parse(updates.location);
-      } catch (error) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid location format'
-        });
-      }
-    }
-
-    // Parse tags if it's a string
-    if (updates.tags && typeof updates.tags === 'string') {
-      try {
-        updates.tags = JSON.parse(updates.tags);
-      } catch (error) {
-        updates.tags = [];
-      }
-    }
-
-    // Handle image updates
-    if (newImageUrls.length > 0) {
-      // If keepExistingImages is true, append new images, otherwise replace
-      const keepExisting = updates.keepExistingImages === 'true';
-      if (keepExisting) {
-        updates.images = [...item.images, ...newImageUrls];
-      } else {
-        updates.images = newImageUrls;
-      }
-    }
-
-    // Remove keepExistingImages from updates as it's not a model field
-    delete updates.keepExistingImages;
-
-    // Update item
-    Object.assign(item, updates);
-    await item.save();
-
-    await item.populate('reporter', 'name email avatar');
-
-    res.json({
-      success: true,
-      message: 'Item updated successfully',
-      data: { item }
-    });
-
-  } catch (error) {
-    logger.error('Update item error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update item'
-    });
-  }
-};
-
-export const getItems = async (req: Request, res: Response) => {
-  try {
-    const {
-      type,
-      category,
-      status = 'active',
-      search,
-      lat,
-      lng,
-      radius = 50,
-      page = 1,
-      limit = 20,
-      sortBy = 'createdAt',
-      sortOrder = 'desc'
-    } = req.query;
-
-    // Build query
-    const query: any = { status, isPublic: true };
-
-    if (type) query.type = type;
-    if (category) query.category = category;
-
-    // Text search
-    if (search) {
-      query.$text = { $search: search as string };
-    }
-
-    // Location-based search
-    if (lat && lng) {
-      const latitude = parseFloat(lat as string);
-      const longitude = parseFloat(lng as string);
-      const radiusInMeters = parseInt(radius as string) * 1000;
-
-      query.location = {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [longitude, latitude]
-          },
-          $maxDistance: radiusInMeters
-        }
-      };
-    }
-
-    // Pagination
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
-    const skip = (pageNum - 1) * limitNum;
-
-    // Sort options
-    const sortOptions: any = {};
-    sortOptions[sortBy as string] = sortOrder === 'desc' ? -1 : 1;
-
-    // Execute query
-    const items = await Item.find(query)
-      .populate('reporter', 'name avatar')
-      .sort(sortOptions)
-      .skip(skip)
-      .limit(limitNum)
-      .lean();
-
-    // Get total count for pagination
-    const total = await Item.countDocuments(query);
-
-    res.json({
-      success: true,
-      data: {
-        items,
-        pagination: {
-          page: pageNum,
-          limit: limitNum,
-          total,
-          pages: Math.ceil(total / limitNum)
+        if (matches.length > 0) {
+          item.matches = matches.map((match: MatchResult) => ({
+            itemId: new Types.ObjectId(match.item_id),
+            confidence: match.confidence,
+            reasons: match.reasons,
+            createdAt: new Date()
+          }));
         }
       }
-    });
-
-  } catch (error) {
-    logger.error('Get items error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch items'
-    });
-  }
-};
-
-export const getItem = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-
-    const item = await Item.findById(id)
-      .populate('reporter', 'name email phone avatar location')
-      .populate('matches', 'title type images location createdAt');
-
-    if (!item) {
-      return res.status(404).json({
+  
+      const updatedItem = await item.save();
+  
+      res.json({
+        success: true,
+        data: updatedItem,
+        message: 'Item updated successfully'
+      });
+  
+    } catch (error) {
+      logger.error('Error updating item:', error);
+      res.status(500).json({
         success: false,
-        message: 'Item not found'
+        message: 'Failed to update item',
+        error: process.env.NODE_ENV === 'development' ? (error as Error).message : 'Internal server error'
       });
     }
+  }
 
-    // Increment view count (but not for the owner)
-    if (item.reporter._id.toString() !== req.user?.id) {
-      item.views += 1;
+  async deleteItem(req: CustomRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+
+      if (!id || !isValidObjectId(id)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid or missing item ID'
+        });
+        return;
+      }
+
+      const item = await ItemModel.findById(id);
+      if (!item) {
+        res.status(404).json({
+          success: false,
+          message: 'Item not found'
+        });
+        return;
+      }
+
+      // Check if user owns the item
+      if (item.reporter.toString() !== req.user?.id) {
+        res.status(403).json({
+          success: false,
+          message: 'Not authorized to delete this item'
+        });
+        return;
+      }
+
+      // Delete associated images
+      if (item.images && item.images.length > 0) {
+        for (const imagePath of item.images) {
+          safeDeleteFile(imagePath);
+        }
+      }
+
+      // Remove item from other items' matches
+      await ItemModel.updateMany(
+        { 'matches.itemId': id },
+        { $pull: { matches: { itemId: id } } }
+      );
+
+      // Delete the item
+      await ItemModel.findByIdAndDelete(id);
+
+      // Update user statistics
+      await User.findByIdAndUpdate(req.user?.id, {
+        $inc: { itemsPosted: -1 }
+      });
+
+      logger.info(`Item deleted: ${id} by user: ${req.user?.id}`);
+
+      res.json({
+        success: true,
+        message: 'Item deleted successfully'
+      });
+
+    } catch (error) {
+      logger.error('Error deleting item:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to delete item',
+        error: process.env.NODE_ENV === 'development' ? (error as Error).message : 'Internal server error'
+      });
+    }
+  }
+
+  async resolveItem(req: CustomRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { resolution, matchedItemId } = req.body;
+
+      if (!id || !isValidObjectId(id)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid or missing item ID'
+        });
+        return;
+      }
+
+      const item = await ItemModel.findById(id);
+      if (!item) {
+        res.status(404).json({
+          success: false,
+          message: 'Item not found'
+        });
+        return;
+      }
+
+      // Check if user owns the item
+      if (item.reporter.toString() !== req.user?.id) {
+        res.status(403).json({
+          success: false,
+          message: 'Not authorized to resolve this item'
+        });
+        return;
+      }
+
+      // Check if item is already resolved
+      if (item.status === 'resolved') {
+        res.status(400).json({
+          success: false,
+          message: 'Item is already resolved'
+        });
+        return;
+      }
+
+      // Update item status
+      item.status = 'resolved';
+      item.resolvedAt = new Date();
+      if (resolution && resolution.trim()) {
+        item.resolution = resolution.trim();
+      }
+      
+      if (matchedItemId && isValidObjectId(matchedItemId)) {
+        item.matchedItem = new Types.ObjectId(matchedItemId);
+        
+        // Also resolve the matched item if it exists
+        const matchedItem = await ItemModel.findById(matchedItemId);
+        if (matchedItem && matchedItem.status === 'active') {
+          matchedItem.status = 'resolved';
+          matchedItem.resolvedAt = new Date();
+          matchedItem.matchedItem = new mongoose.Types.ObjectId(item._id as string);
+          await matchedItem.save();
+        }
+      }
+
       await item.save();
+
+      // Update user statistics
+      await User.findByIdAndUpdate(req.user?.id, {
+        $inc: { itemsResolved: 1 }
+      });
+
+      // Send notification to users who had this item in their matches
+      // await notificationService.notifyItemResolved(item, req.io);
+
+      logger.info(`Item resolved: ${id} by user: ${req.user?.id}`);
+
+      res.json({
+        success: true,
+        data: item,
+        message: 'Item marked as resolved successfully'
+      });
+
+    } catch (error) {
+      logger.error('Error resolving item:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to resolve item',
+        error: process.env.NODE_ENV === 'development' ? (error as Error).message : 'Internal server error'
+      });
     }
-
-    res.json({
-      success: true,
-      data: { item }
-    });
-
-  } catch (error) {
-    logger.error('Get item error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch item'
-    });
   }
-};
 
-export const deleteItem = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-
-    const item = await Item.findById(id);
-
-    if (!item) {
-      return res.status(404).json({
-        success: false,
-        message: 'Item not found'
-      });
-    }
-
-    // Check ownership or admin role
-    if (item.reporter.toString() !== req.user!.id && req.user!.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to delete this item'
-      });
-    }
-
-    await Item.findByIdAndDelete(id);
-
-    res.json({
-      success: true,
-      message: 'Item deleted successfully'
-    });
-
-  } catch (error) {
-    logger.error('Delete item error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to delete item'
-    });
-  }
-};
-
-export const searchItems = async (req: Request, res: Response) => {
-  try {
-    const {
-      q,
-      type,
-      category,
-      lat,
-      lng,
-      radius = 50,
-      page = 1,
-      limit = 20
-    } = req.query;
-
-    if (!q) {
-      return res.status(400).json({
-        success: false,
-        message: 'Search query is required'
-      });
-    }
-
-    // Build search query
-    const query: any = {
-      status: 'active',
-      isPublic: true,
-      $text: { $search: q as string }
-    };
-
-    if (type) query.type = type;
-    if (category) query.category = category;
-
-    // Location filter
-    if (lat && lng) {
-      const latitude = parseFloat(lat as string);
-      const longitude = parseFloat(lng as string);
-      const radiusInMeters = parseInt(radius as string) * 1000;
-
-      query.location = {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [longitude, latitude]
-          },
-          $maxDistance: radiusInMeters
-        }
-      };
-    }
-
-    // Pagination
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
-    const skip = (pageNum - 1) * limitNum;
-
-    const items = await Item.find(query, { score: { $meta: 'textScore' } })
-      .populate('reporter', 'name avatar')
-      .sort({ score: { $meta: 'textScore' } })
-      .skip(skip)
-      .limit(limitNum);
-
-    const total = await Item.countDocuments(query);
-
-    res.json({
-      success: true,
-      data: {
-        items,
-        pagination: {
-          page: pageNum,
-          limit: limitNum,
-          total,
-          pages: Math.ceil(total / limitNum)
-        }
+  async rerunMatching(req: CustomRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      
+      if (!id || !isValidObjectId(id)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid or missing item ID'
+        });
+        return;
       }
-    });
-
-  } catch (error) {
-    logger.error('Search items error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Search failed'
-    });
-  }
-};
-
-export const getItemMatches = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-
-    const item = await Item.findById(id);
-
-    if (!item) {
-      return res.status(404).json({
-        success: false,
-        message: 'Item not found'
-      });
-    }
-
-    // Check ownership
-    if (item.reporter.toString() !== req.user!.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to view matches for this item'
-      });
-    }
-
-    // Find potential matches using AI
-    const matches = await findPotentialMatches(item);
-
-    res.json({
-      success: true,
-      data: { matches }
-    });
-
-  } catch (error) {
-    logger.error('Get item matches error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch matches'
-    });
-  }
-};
-
-export const markItemAsClaimed = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-
-    const item = await Item.findById(id);
-
-    if (!item) {
-      return res.status(404).json({
-        success: false,
-        message: 'Item not found'
-      });
-    }
-
-    // Check ownership
-    if (item.reporter.toString() !== req.user!.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to update this item'
-      });
-    }
-
-    item.status = 'claimed';
-    await item.save();
-
-    res.json({
-      success: true,
-      message: 'Item marked as claimed',
-      data: { item }
-    });
-
-  } catch (error) {
-    logger.error('Mark item as claimed error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update item status'
-    });
-  }
-};
-
-export const getItemsByUser = async (req: Request, res: Response) => {
-  try {
-    const { userId } = req.params;
-    const { type, status, page = 1, limit = 20 } = req.query;
-
-    // Check if user is requesting their own items or is admin
-    if (userId !== req.user!.id && req.user!.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to view these items'
-      });
-    }
-
-    const query: any = { reporter: userId };
-    if (type) query.type = type;
-    if (status) query.status = status;
-
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
-    const skip = (pageNum - 1) * limitNum;
-
-    const items = await Item.find(query)
-      .populate('reporter', 'name avatar')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum);
-
-    const total = await Item.countDocuments(query);
-
-    res.json({
-      success: true,
-      data: {
-        items,
-        pagination: {
-          page: pageNum,
-          limit: limitNum,
-          total,
-          pages: Math.ceil(total / limitNum)
-        }
+      
+      const item = await ItemModel.findById(id);
+      if (!item) {
+        res.status(404).json({
+          success: false,
+          message: 'Item not found'
+        });
+        return;
       }
-    });
 
-  } catch (error) {
-    logger.error('Get items by user error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch user items'
-    });
-  }
-};
+      // Check if user owns the item
+      if (item.reporter.toString() !== req.user?.id) {
+        res.status(403).json({
+          success: false,
+          message: 'Not authorized to rerun matching'
+        });
+        return;
+      }
 
-// Helper function to find potential matches
-async function findPotentialMatches(item: any) {
-  try {
-    const oppositeType = item.type === 'lost' ? 'found' : 'lost';
-    
-    // Use AI service to find matches
-    const matches = await aiClient.findMatches(
-      item.type,
-      item.aiMetadata?.imageFeatures,
-      item.aiMetadata?.textEmbedding,
-      item.category
-    );
+      // Check if item is already resolved
+      if (item.status === 'resolved') {
+        res.status(400).json({
+          success: false,
+          message: 'Cannot rerun matching for resolved items'
+        });
+        return;
+      }
 
-    // Get full item details for matches
-    const matchedItems = await Item.find({
-      _id: { $in: matches.map((m: any) => m.itemId) },
-      type: oppositeType,
-      status: 'active'
-    }).populate('reporter', 'name avatar');
+      const oppositeType = item.type === 'lost' ? 'found' : 'lost';
+      const matches = await aiService.findSimilarItems(item, oppositeType);
 
-    return matches.map((match: any) => {
-      const matchedItem = matchedItems.find((item: any) => item._id.toString() === match.itemId);
-      return {
-        ...match,
-        item: matchedItem
-      };
-    });
+      // Update matches
+      item.matches = matches.map((match: MatchResult) => ({
+        itemId: new Types.ObjectId(match.item_id),
+        confidence: match.confidence,
+        reasons: match.reasons,
+        createdAt: new Date()
+      }));
 
-  } catch (error) {
-    logger.error('Find potential matches error:', error);
-    return [];
+      await item.save();
+
+      // Send notifications for new matches
+      // if (matches.length > 0) {
+      //   await notificationService.notifyMatches(item, matches, req.io);
+      // }
+
+      res.json({
+        success: true,
+        data: {
+          item,
+          matches,
+          matchCount: matches.length
+        },
+        message: `Found ${matches.length} potential matches`
+      });
+
+    } catch (error) {
+      logger.error('Error rerunning matching:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to rerun matching',
+        error: process.env.NODE_ENV === 'development' ? (error as Error).message : 'Internal server error'
+      });
+    }
   }
 }
+
+export default new ItemController();

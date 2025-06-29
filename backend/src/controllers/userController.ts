@@ -1,191 +1,369 @@
 import { Request, Response } from 'express';
-import { User } from '../models/Users';
-import { Item } from '../models/Item';
+import jwt, { SignOptions, Secret } from 'jsonwebtoken';
+import { validationResult } from 'express-validator';
+import User, { IUser } from '../models/Users'
+import { ItemModel as Item } from '../models/Item';
 import { logger } from '../utils/loggers';
-import { Types } from 'mongoose';
-export const getProfile = async (req: Request, res: Response) => {
-  try {
-    const user = await User.findById(req.user!.id);
-    
-    if (!user) {
-      return res.status(404).json({
+import { sendEmail } from '../services/emailService';
+interface AuthRequest extends Request {
+  user?: {
+    id: string;
+    _id: string;
+  };
+}
+
+
+export class UserController {
+  /**
+   * Register a new user
+   */
+  static async register(req: Request, res: Response): Promise<void> {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          errors: errors.array()
+        });
+        return;
+      }
+
+      const { name, email, password } = req.body;
+
+      // Check if user already exists
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        res.status(400).json({
+          success: false,
+          message: 'User already exists with this email'
+        });
+        return;
+      }
+
+      // Create new user
+      const user = new User({
+        name,
+        email,
+        password
+      });
+
+      await user.save();
+ // ✅ Send welcome email
+ await sendEmail({
+  to: email,
+  subject: 'Welcome to Lost & Found!',
+  template: 'welcome',
+  data: { name }
+});
+      // Generate JWT
+      const token = jwt.sign(
+        { id: user._id },
+        process.env.JWT_SECRET as string,
+        {
+          expiresIn: "7d"
+        }
+      );
+
+
+      res.status(201).json({
+        success: true,
+        data: {
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            isVerified: user.isVerified,
+            reputation: user.reputation
+          },
+          token
+        },
+        message: 'User registered successfully'
+      });
+
+    } catch (error: any) {
+      logger.error('Registration error:', error);
+      res.status(500).json({
         success: false,
-        message: 'User not found'
+        message: 'Registration failed',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }
-
-    res.json({
-      success: true,
-      data: { user }
-    });
-
-  } catch (error) {
-    logger.error('Get profile error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch profile'
-    });
   }
-};
 
-export const updateProfile = async (req: Request, res: Response) => {
-  try {
-    const { name, phone, avatar, location } = req.body;
+  /**
+   * Login user
+   */
+  static async login(req: Request, res: Response): Promise<void> {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          errors: errors.array()
+        });
+        return;
+      }
 
-    const user = await User.findById(req.user!.id);
-    
-    if (!user) {
-      return res.status(404).json({
+      const { email, password } = req.body;
+
+      // Find user
+      const user = await User.findOne({ email });
+      if (!user) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid credentials'
+        });
+        return;
+      }
+
+      // Check password
+      const isMatch = await user.comparePassword(password);
+      if (!isMatch) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid credentials'
+        });
+        return;
+      }
+
+      // Update last active
+      await user.updateLastActive();
+
+      // Generate JWT
+      const token = jwt.sign(
+        { id: user._id },
+        process.env.JWT_SECRET as string,
+        {
+          expiresIn: "7d"
+        }
+      );
+      
+      
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      });
+      res.json({
+        success: true,
+        data: {
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            isVerified: user.isVerified,
+            reputation: user.reputation,
+            itemsPosted: user.itemsPosted,
+            itemsResolved: user.itemsResolved
+          },
+          token
+        },
+        message: 'Login successful'
+      });
+
+    } catch (error: any) {
+      logger.error('Login error:', error);
+      res.status(500).json({
         success: false,
-        message: 'User not found'
+        message: 'Login failed',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }
-
-    // Update fields
-    if (name) user.name = name;
-    if (phone) user.phone = phone;
-    if (avatar) user.avatar = avatar;
-    if (location) user.location = location;
-
-    await user.save();
-
-    res.json({
-      success: true,
-      message: 'Profile updated successfully',
-      data: { user }
-    });
-
-  } catch (error) {
-    logger.error('Update profile error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update profile'
-    });
   }
-};
 
-export const getUserItems = async (req: Request, res: Response) => {
-  try {
-    const { type, status, page = 1, limit = 20 } = req.query;
+  /**
+   * Get user profile
+   */
+  static async getProfile(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const user = await User.findById(req.user?.id).select('-password');
+      
+      res.json({
+        success: true,
+        data: user
+      });
 
-    const query: any = { reporter: req.user!.id };
-    if (type) query.type = type;
-    if (status) query.status = status;
+    } catch (error: any) {
+      logger.error('Error fetching profile:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch profile',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  }
 
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
-    const skip = (pageNum - 1) * limitNum;
-
-    const items = await Item.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum)
-      .populate('matches', 'title type images location createdAt');
-
-    const total = await Item.countDocuments(query);
-
-    res.json({
-      success: true,
-      data: {
-        items,
-        pagination: {
-          page: pageNum,
-          limit: limitNum,
-          total,
-          pages: Math.ceil(total / limitNum)
-        }
+  /**
+   * Update user profile
+   */
+  static async updateProfile(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          errors: errors.array()
+        });
+        return;
       }
-    });
 
-  } catch (error) {
-    logger.error('Get user items error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch user items'
-    });
+      const updates = req.body;
+      delete updates.password; // Prevent password update through this route
+      delete updates.email; // Prevent email update through this route
+
+      const user = await User.findByIdAndUpdate(
+        req.user?.id,
+        updates,
+        { new: true, runValidators: true }
+      ).select('-password');
+
+      res.json({
+        success: true,
+        data: user,
+        message: 'Profile updated successfully'
+      });
+
+    } catch (error: any) {
+      logger.error('Error updating profile:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update profile',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
   }
-};
 
+  /**
+   * Update notification preferences
+   */
+  static async updateNotificationPreferences(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { email, push, sms } = req.body;
+      
+      const user = await User.findByIdAndUpdate(
+        req.user?.id,
+        {
+          notificationPreferences: {
+            email: email !== undefined ? email : true,
+            push: push !== undefined ? push : true,
+            sms: sms !== undefined ? sms : false
+          }
+        },
+        { new: true }
+      ).select('-password');
 
+      res.json({
+        success: true,
+        data: user,
+        message: 'Notification preferences updated successfully'
+      });
 
-export const getUserStats = async (req: Request, res: Response) => {
-  try {
-    const userId = new Types.ObjectId(req.user!.id); // convert to ObjectId
+    } catch (error: any) {
+      logger.error('Error updating notification preferences:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update notification preferences',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  }
 
-    const stats = await Item.aggregate([
-      { $match: { reporter: userId } },
-      {
-        $group: {
-          _id: { type: '$type', status: '$status' },
-          count: { $sum: 1 }
-        }
+  /**
+   * Change user password
+   */
+  static async changePassword(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          errors: errors.array()
+        });
+        return;
       }
-    ]);
 
-    const totalViews = await Item.aggregate([
-      { $match: { reporter: userId } },
-      { $group: { _id: null, totalViews: { $sum: '$views' } } }
-    ]);
+      const { currentPassword, newPassword } = req.body;
 
-    const recentItems = await Item.find({ reporter: userId })
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .select('title type status createdAt');
+      const user = await User.findById(req.user?.id);
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          message: 'User not found'
+        });
+        return;
+      }
+      
+      // Verify current password
+      const isMatch = await user.comparePassword(currentPassword);
+      if (!isMatch) {
+        res.status(400).json({
+          success: false,
+          message: 'Current password is incorrect'
+        });
+        return;
+      }
 
-    const formattedStats = {
-      totalItems: 0,
-      lostItems: 0,
-      foundItems: 0,
-      activeItems: 0,
-      claimedItems: 0,
-      totalViews: totalViews[0]?.totalViews || 0,
-      recentItems
-    };
+      // Update password
+      user.password = newPassword;
+      await user.save();
 
-    stats.forEach(stat => {
-      formattedStats.totalItems += stat.count;
-      if (stat._id.type === 'lost') formattedStats.lostItems += stat.count;
-      else formattedStats.foundItems += stat.count;
+      res.json({
+        success: true,
+        message: 'Password updated successfully'
+      });
 
-      if (stat._id.status === 'active') formattedStats.activeItems += stat.count;
-      else if (stat._id.status === 'claimed') formattedStats.claimedItems += stat.count;
-    });
-
-    res.json({
-      success: true,
-      data: { stats: formattedStats }
-    });
-
-  } catch (error) {
-    logger.error('Get user stats error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch user statistics'
-    });
+    } catch (error: any) {
+      logger.error('Error changing password:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to change password',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
   }
-};
 
+  /**
+   * Get user statistics
+   */
+  static async getUserStats(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const userStats = await Item.aggregate([
+        { $match: { reporter: req.user?._id } },
+        {
+          $group: {
+            _id: null,
+            totalItems: { $sum: 1 },
+            lostItems: { $sum: { $cond: [{ $eq: ['$type', 'lost'] }, 1, 0] } },
+            foundItems: { $sum: { $cond: [{ $eq: ['$type', 'found'] }, 1, 0] } },
+            resolvedItems: { $sum: { $cond: [{ $eq: ['$status', 'resolved'] }, 1, 0] } },
+            totalViews: { $sum: '$views' },
+            totalMatches: { $sum: { $size: '$matches' } }
+          }
+        }
+      ]);
 
-export const deleteAccount = async (req: Request, res: Response) => {
-  try {
-    const userId = req.user!.id;
+      const stats = userStats[0] || {
+        totalItems: 0,
+        lostItems: 0,
+        foundItems: 0,
+        resolvedItems: 0,
+        totalViews: 0,
+        totalMatches: 0
+      };
 
-    // Delete user's items
-    await Item.deleteMany({ reporter: userId });
+      res.json({
+        success: true,
+        data: stats
+      });
 
-    // Delete user account
-    await User.findByIdAndDelete(userId);
-
-    res.json({
-      success: true,
-      message: 'Account deleted successfully'
-    });
-
-  } catch (error) {
-    logger.error('Delete account error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to delete account'
-    });
+    } catch (error: any) {
+      logger.error('Error fetching user statistics:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch statistics',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
   }
-};
+}
