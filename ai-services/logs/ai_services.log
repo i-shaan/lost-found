@@ -2475,3 +2475,353 @@ requests.exceptions.ConnectionError: (MaxRetryError('HTTPSConnectionPool(host=\'
 2025-06-29 09:57:25,956 - ai_services - INFO - hi
 2025-06-29 09:57:25,988 - ai_services - INFO - Analyzing 1 images
 2025-06-29 09:57:28,959 - ai_services - INFO - Generating embeddings
+2025-06-30 01:17:09,031 - ai_services - INFO - Starting Enhanced AI Services with Gemini AI...
+2025-06-30 01:19:39,124 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-06-30 01:19:39,126 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-06-30 01:19:45,730 - ai_services - INFO - Enhanced text analyzer initialized successfully
+2025-06-30 01:19:45,838 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-06-30 01:19:45,838 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-06-30 01:19:50,779 - ai_services - INFO - Enhanced text analyzer initialized successfully
+2025-06-30 01:19:50,780 - ai_services - INFO - Text analyzer initialized successfully
+2025-06-30 01:19:50,781 - ai_services - INFO - Image analyzer initialized successfully
+2025-06-30 01:19:50,782 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-06-30 01:19:50,782 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-06-30 01:19:54,674 - ai_services - INFO - Embedding service initialized successfully
+2025-06-30 01:19:55,322 - ai_services - INFO - Advanced matching service initialized successfully
+2025-06-30 01:19:55,384 - ai_services - INFO - Enhanced AI Services initialized successfully
+2025-06-30 15:28:04,555 - ai_services - INFO - Starting Enhanced AI Services with Gemini AI...
+2025-06-30 15:30:56,581 - ai_services - INFO - Starting Enhanced AI Services with Gemini AI...
+2025-06-30 15:30:56,707 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-06-30 15:30:56,707 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-06-30 15:31:04,114 - ai_services - INFO - Enhanced text analyzer initialized successfully
+2025-06-30 15:31:04,119 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-06-30 15:31:04,119 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-06-30 15:31:10,155 - ai_services - INFO - Enhanced text analyzer initialized successfully
+2025-06-30 15:31:10,156 - ai_services - INFO - Text analyzer initialized successfully
+2025-06-30 15:31:10,156 - ai_services - INFO - Image analyzer initialized successfully
+2025-06-30 15:31:10,158 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-06-30 15:31:10,158 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-06-30 15:31:14,138 - ai_services - INFO - Embedding service initialized successfully
+2025-06-30 15:31:14,694 - ai_services - INFO - Advanced matching service initialized successfully
+2025-06-30 15:31:14,810 - ai_services - INFO - Enhanced AI Services initialized successfully
+2025-06-30 15:31:25,072 - ai_services - INFO - Received request for enhanced text analysis
+2025-06-30 15:31:25,073 - ai_services - INFO - Payload description: found a silver during the fest near stage...
+2025-06-30 15:31:25,073 - ai_services - INFO - Performing enhanced text analysis with Gemini AI
+2025-06-30 15:31:25,073 - ai_services - INFO - Starting enhanced text analysis with Gemini AI
+2025-06-30 15:31:27,785 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-06-30 15:31:27,785 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-06-30 15:31:27,785 - ai_services - INFO - hi
+2025-06-30 15:31:27,792 - ai_services - INFO - Analyzing 1 images
+2025-06-30 15:31:31,472 - ai_services - INFO - Generating embeddings
+2025-06-30 19:47:19,074 - ai_services - INFO - Received request for enhanced text analysis
+2025-06-30 19:47:19,077 - ai_services - INFO - Payload description: found a silver during the fest near stage...
+2025-06-30 19:47:19,077 - ai_services - INFO - Performing enhanced text analysis with Gemini AI
+2025-06-30 19:47:19,078 - ai_services - INFO - Starting enhanced text analysis with Gemini AI
+2025-06-30 19:47:28,509 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-06-30 19:47:28,512 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-06-30 19:47:28,512 - ai_services - INFO - hi
+2025-06-30 19:47:28,597 - ai_services - INFO - Analyzing 1 images
+2025-06-30 19:47:33,064 - ai_services - INFO - Generating embeddings
+2025-06-30 20:22:19,464 - ai_services - INFO - Received request for enhanced text analysis
+2025-06-30 20:22:19,466 - ai_services - INFO - Payload description: found a silver during the fest near stage...
+2025-06-30 20:22:19,467 - ai_services - INFO - Performing enhanced text analysis with Gemini AI
+2025-06-30 20:22:19,467 - ai_services - INFO - Starting enhanced text analysis with Gemini AI
+2025-06-30 20:22:27,325 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-06-30 20:22:27,326 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-06-30 20:22:27,326 - ai_services - INFO - hi
+2025-06-30 20:22:27,417 - ai_services - INFO - Analyzing 1 images
+2025-06-30 20:22:36,389 - ai_services - INFO - Generating embeddings
+2025-06-30 20:54:23,678 - ai_services - INFO - Received request for enhanced text analysis
+2025-06-30 20:54:23,683 - ai_services - INFO - Payload description: Lost during a cultural fest near the central stage....
+2025-06-30 20:54:23,683 - ai_services - INFO - Performing enhanced text analysis with Gemini AI
+2025-06-30 20:54:23,684 - ai_services - INFO - Starting enhanced text analysis with Gemini AI
+2025-06-30 20:54:31,196 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-06-30 20:54:31,197 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-06-30 20:54:31,197 - ai_services - INFO - hi
+2025-06-30 20:54:31,217 - ai_services - INFO - Analyzing 1 images
+2025-06-30 20:54:35,329 - ai_services - INFO - Generating embeddings
+2025-06-30 20:59:47,196 - ai_services - INFO - Received request for enhanced text analysis
+2025-06-30 20:59:47,198 - ai_services - INFO - Payload description: found a silver during the fest near stage...
+2025-06-30 20:59:47,199 - ai_services - INFO - Performing enhanced text analysis with Gemini AI
+2025-06-30 20:59:47,199 - ai_services - INFO - Starting enhanced text analysis with Gemini AI
+2025-06-30 20:59:52,983 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-06-30 20:59:52,984 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-06-30 20:59:52,984 - ai_services - INFO - hi
+2025-06-30 20:59:52,997 - ai_services - INFO - Analyzing 1 images
+2025-06-30 20:59:56,176 - ai_services - INFO - Generating embeddings
+2025-06-30 21:08:37,260 - ai_services - INFO - Received request for enhanced text analysis
+2025-06-30 21:08:37,263 - ai_services - INFO - Payload description: found a silver during the fest near stage...
+2025-06-30 21:08:37,263 - ai_services - INFO - Performing enhanced text analysis with Gemini AI
+2025-06-30 21:08:37,263 - ai_services - INFO - Starting enhanced text analysis with Gemini AI
+2025-06-30 21:08:44,218 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-06-30 21:08:44,218 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-06-30 21:08:44,218 - ai_services - INFO - hi
+2025-06-30 21:08:44,233 - ai_services - INFO - Analyzing 1 images
+2025-06-30 21:08:49,717 - ai_services - INFO - Generating embeddings
+2025-06-30 21:11:49,569 - ai_services - INFO - Received request for enhanced text analysis
+2025-06-30 21:11:49,580 - ai_services - INFO - Payload description: ound a silver during the fest near stage...
+2025-06-30 21:11:49,580 - ai_services - INFO - Performing enhanced text analysis with Gemini AI
+2025-06-30 21:11:49,582 - ai_services - INFO - Starting enhanced text analysis with Gemini AI
+2025-06-30 21:11:53,586 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-06-30 21:11:53,587 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-06-30 21:11:53,587 - ai_services - INFO - hi
+2025-06-30 21:11:53,602 - ai_services - INFO - Analyzing 1 images
+2025-06-30 21:11:57,629 - ai_services - INFO - Generating embeddings
+2025-06-30 21:15:49,721 - ai_services - INFO - Received request for enhanced text analysis
+2025-06-30 21:15:49,723 - ai_services - INFO - Payload description: ound a silver during the fest near stage...
+2025-06-30 21:15:49,723 - ai_services - INFO - Performing enhanced text analysis with Gemini AI
+2025-06-30 21:15:49,724 - ai_services - INFO - Starting enhanced text analysis with Gemini AI
+2025-06-30 21:15:52,535 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-06-30 21:15:52,536 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-06-30 21:15:52,536 - ai_services - INFO - hi
+2025-06-30 21:15:52,551 - ai_services - INFO - Analyzing 1 images
+2025-06-30 21:15:55,684 - ai_services - INFO - Generating embeddings
+2025-07-01 18:27:14,883 - ai_services - INFO - Starting Enhanced AI Services with Gemini AI...
+2025-07-01 18:27:16,237 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-07-01 18:27:16,238 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-07-01 18:27:24,796 - ai_services - INFO - Enhanced text analyzer initialized successfully
+2025-07-01 18:27:24,805 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-07-01 18:27:24,805 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-07-01 18:27:30,573 - ai_services - INFO - Enhanced text analyzer initialized successfully
+2025-07-01 18:27:30,573 - ai_services - INFO - Text analyzer initialized successfully
+2025-07-01 18:27:30,573 - ai_services - INFO - Image analyzer initialized successfully
+2025-07-01 18:27:30,575 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-07-01 18:27:30,575 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-07-01 18:27:34,971 - ai_services - INFO - Embedding service initialized successfully
+2025-07-01 18:27:35,560 - ai_services - INFO - Advanced matching service initialized successfully
+2025-07-01 18:27:35,560 - ai_services - INFO - Enhanced AI Services initialized successfully
+2025-07-03 12:13:31,135 - ai_services - INFO - Starting Enhanced AI Services with Gemini AI...
+2025-07-03 12:16:01,234 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-07-03 12:16:01,236 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-07-03 12:16:09,067 - ai_services - INFO - Enhanced text analyzer initialized successfully
+2025-07-03 12:16:09,384 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-07-03 12:16:09,384 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-07-03 12:16:17,576 - ai_services - INFO - Enhanced text analyzer initialized successfully
+2025-07-03 12:16:17,577 - ai_services - INFO - Text analyzer initialized successfully
+2025-07-03 12:16:17,577 - ai_services - INFO - Image analyzer initialized successfully
+2025-07-03 12:16:17,580 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-07-03 12:16:17,580 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-07-03 12:16:23,719 - ai_services - INFO - Embedding service initialized successfully
+2025-07-03 12:16:24,207 - ai_services - INFO - Advanced matching service initialized successfully
+2025-07-03 12:16:24,207 - ai_services - INFO - Enhanced AI Services initialized successfully
+2025-07-03 12:18:49,975 - ai_services - INFO - Starting Enhanced AI Services with Gemini AI...
+2025-07-03 12:19:05,357 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-07-03 12:19:05,358 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-07-03 12:20:00,783 - ai_services - ERROR - Failed to initialize enhanced text analyzer: (MaxRetryError('HTTPSConnectionPool(host=\'huggingface.co\', port=443): Max retries exceeded with url: /api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main/additional_chat_templates?recursive=False&expand=False (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x1699ee210>: Failed to resolve \'huggingface.co\' ([Errno 8] nodename nor servname provided, or not known)"))'), '(Request ID: 487c3b62-ce0e-41d3-871b-0e8f7a0e1a57)')
+2025-07-03 12:20:00,783 - ai_services - ERROR - Service initialization failed: (MaxRetryError('HTTPSConnectionPool(host=\'huggingface.co\', port=443): Max retries exceeded with url: /api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main/additional_chat_templates?recursive=False&expand=False (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x1699ee210>: Failed to resolve \'huggingface.co\' ([Errno 8] nodename nor servname provided, or not known)"))'), '(Request ID: 487c3b62-ce0e-41d3-871b-0e8f7a0e1a57)')
+2025-07-03 12:20:00,798 - ai_services - ERROR - Traceback (most recent call last):
+  File "/opt/homebrew/lib/python3.13/site-packages/urllib3/connection.py", line 198, in _new_conn
+    sock = connection.create_connection(
+        (self._dns_host, self.port),
+    ...<2 lines>...
+        socket_options=self.socket_options,
+    )
+  File "/opt/homebrew/lib/python3.13/site-packages/urllib3/util/connection.py", line 60, in create_connection
+    for res in socket.getaddrinfo(host, port, family, socket.SOCK_STREAM):
+               ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/socket.py", line 977, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/opt/homebrew/lib/python3.13/site-packages/urllib3/connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "/opt/homebrew/lib/python3.13/site-packages/urllib3/connectionpool.py", line 488, in _make_request
+    raise new_e
+  File "/opt/homebrew/lib/python3.13/site-packages/urllib3/connectionpool.py", line 464, in _make_request
+    self._validate_conn(conn)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/opt/homebrew/lib/python3.13/site-packages/urllib3/connectionpool.py", line 1093, in _validate_conn
+    conn.connect()
+    ~~~~~~~~~~~~^^
+  File "/opt/homebrew/lib/python3.13/site-packages/urllib3/connection.py", line 704, in connect
+    self.sock = sock = self._new_conn()
+                       ~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/lib/python3.13/site-packages/urllib3/connection.py", line 205, in _new_conn
+    raise NameResolutionError(self.host, self, e) from e
+urllib3.exceptions.NameResolutionError: <urllib3.connection.HTTPSConnection object at 0x1699ee210>: Failed to resolve 'huggingface.co' ([Errno 8] nodename nor servname provided, or not known)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/opt/homebrew/lib/python3.13/site-packages/requests/adapters.py", line 667, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "/opt/homebrew/lib/python3.13/site-packages/urllib3/connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "/opt/homebrew/lib/python3.13/site-packages/urllib3/util/retry.py", line 519, in increment
+    raise MaxRetryError(_pool, url, reason) from reason  # type: ignore[arg-type]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+urllib3.exceptions.MaxRetryError: HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main/additional_chat_templates?recursive=False&expand=False (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x1699ee210>: Failed to resolve 'huggingface.co' ([Errno 8] nodename nor servname provided, or not known)"))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/ishaanagarwal/lost_found/ai-services/main.py", line 62, in startup_event
+    await enhanced_text_analyzer.initialize()
+  File "/Users/ishaanagarwal/lost_found/ai-services/services/enhanced_text_analyzer.py", line 34, in initialize
+    self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+                           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.13/site-packages/sentence_transformers/SentenceTransformer.py", line 309, in __init__
+    modules, self.module_kwargs = self._load_sbert_model(
+                                  ~~~~~~~~~~~~~~~~~~~~~~^
+        model_name_or_path,
+        ^^^^^^^^^^^^^^^^^^^
+    ...<7 lines>...
+        config_kwargs=config_kwargs,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/opt/homebrew/lib/python3.13/site-packages/sentence_transformers/SentenceTransformer.py", line 1808, in _load_sbert_model
+    module = module_class(model_name_or_path, cache_dir=cache_folder, backend=self.backend, **kwargs)
+  File "/opt/homebrew/lib/python3.13/site-packages/sentence_transformers/models/Transformer.py", line 85, in __init__
+    self.tokenizer = AutoTokenizer.from_pretrained(
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        tokenizer_name_or_path if tokenizer_name_or_path is not None else model_name_or_path,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        cache_dir=cache_dir,
+        ^^^^^^^^^^^^^^^^^^^^
+        **tokenizer_args,
+        ^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/opt/homebrew/lib/python3.13/site-packages/transformers/models/auto/tokenization_auto.py", line 1013, in from_pretrained
+    return tokenizer_class.from_pretrained(pretrained_model_name_or_path, *inputs, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.13/site-packages/transformers/tokenization_utils_base.py", line 1968, in from_pretrained
+    for template in list_repo_templates(
+                    ~~~~~~~~~~~~~~~~~~~^
+        pretrained_model_name_or_path,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        cache_dir=cache_dir,
+        ^^^^^^^^^^^^^^^^^^^^
+    ):
+    ^
+  File "/opt/homebrew/lib/python3.13/site-packages/transformers/utils/hub.py", line 163, in list_repo_templates
+    for entry in list_repo_tree(
+                 ~~~~~~~~~~~~~~^
+        repo_id=repo_id, revision=revision, path_in_repo=CHAT_TEMPLATE_DIR, recursive=False
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/opt/homebrew/lib/python3.13/site-packages/huggingface_hub/hf_api.py", line 3168, in list_repo_tree
+    for path_info in paginate(path=tree_url, headers=headers, params={"recursive": recursive, "expand": expand}):
+                     ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.13/site-packages/huggingface_hub/utils/_pagination.py", line 36, in paginate
+    r = session.get(path, params=params, headers=headers)
+  File "/opt/homebrew/lib/python3.13/site-packages/requests/sessions.py", line 602, in get
+    return self.request("GET", url, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.13/site-packages/requests/sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "/opt/homebrew/lib/python3.13/site-packages/requests/sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "/opt/homebrew/lib/python3.13/site-packages/huggingface_hub/utils/_http.py", line 96, in send
+    return super().send(request, *args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.13/site-packages/requests/adapters.py", line 700, in send
+    raise ConnectionError(e, request=request)
+requests.exceptions.ConnectionError: (MaxRetryError('HTTPSConnectionPool(host=\'huggingface.co\', port=443): Max retries exceeded with url: /api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main/additional_chat_templates?recursive=False&expand=False (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x1699ee210>: Failed to resolve \'huggingface.co\' ([Errno 8] nodename nor servname provided, or not known)"))'), '(Request ID: 487c3b62-ce0e-41d3-871b-0e8f7a0e1a57)')
+
+2025-07-03 13:10:34,517 - ai_services - INFO - Starting Enhanced AI Services with Gemini AI...
+2025-07-03 13:10:35,756 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-07-03 13:10:35,757 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-07-03 13:10:42,903 - ai_services - INFO - Enhanced text analyzer initialized successfully
+2025-07-03 13:10:42,908 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-07-03 13:10:42,908 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-07-03 13:10:49,373 - ai_services - INFO - Enhanced text analyzer initialized successfully
+2025-07-03 13:10:49,374 - ai_services - INFO - Text analyzer initialized successfully
+2025-07-03 13:10:49,375 - ai_services - INFO - Image analyzer initialized successfully
+2025-07-03 13:10:49,376 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-07-03 13:10:49,376 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-07-03 13:10:54,390 - ai_services - INFO - Embedding service initialized successfully
+2025-07-03 13:10:54,975 - ai_services - INFO - Advanced matching service initialized successfully
+2025-07-03 13:10:54,975 - ai_services - INFO - Enhanced AI Services initialized successfully
+2025-07-03 13:24:02,954 - ai_services - INFO - Received request for enhanced text analysis
+2025-07-03 13:24:02,956 - ai_services - INFO - Payload description: Lost a backpack in library in first floor...
+2025-07-03 13:24:02,957 - ai_services - INFO - Performing enhanced text analysis with Gemini AI
+2025-07-03 13:24:02,958 - ai_services - INFO - Starting enhanced text analysis with Gemini AI
+2025-07-03 13:24:11,493 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-07-03 13:24:11,493 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-07-03 13:24:11,493 - ai_services - INFO - hi
+2025-07-03 13:24:11,504 - ai_services - INFO - Generating embeddings
+2025-07-03 13:35:04,719 - ai_services - INFO - Starting Enhanced AI Services with Gemini AI...
+2025-07-03 13:36:19,980 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-07-03 13:36:19,981 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-07-03 13:36:29,173 - ai_services - INFO - Enhanced text analyzer initialized successfully
+2025-07-03 13:36:29,177 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-07-03 13:36:29,178 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-07-03 13:36:36,035 - ai_services - INFO - Enhanced text analyzer initialized successfully
+2025-07-03 13:36:36,037 - ai_services - INFO - Text analyzer initialized successfully
+2025-07-03 13:36:36,038 - ai_services - INFO - Gemini AI initialized successfully
+2025-07-03 13:36:36,038 - ai_services - INFO - Image analyzer initialized successfully
+2025-07-03 13:36:36,042 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-07-03 13:36:36,042 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-07-03 13:36:40,599 - ai_services - INFO - Embedding service initialized successfully
+2025-07-03 13:36:41,109 - ai_services - INFO - Advanced matching service initialized successfully
+2025-07-03 13:36:41,109 - ai_services - INFO - Enhanced AI Services initialized successfully
+2025-07-03 13:37:53,476 - ai_services - INFO - Received request for enhanced text analysis
+2025-07-03 13:37:53,477 - ai_services - INFO - Payload description: Lost hp backpack in library on first floor...
+2025-07-03 13:37:53,477 - ai_services - INFO - Performing enhanced text analysis with Gemini AI
+2025-07-03 13:37:53,477 - ai_services - INFO - Starting enhanced text analysis with Gemini AI
+2025-07-03 13:37:57,868 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-07-03 13:37:57,868 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-07-03 13:37:57,868 - ai_services - INFO - hi
+2025-07-03 13:37:57,876 - ai_services - INFO - Generating embeddings
+2025-07-03 13:45:27,211 - ai_services - INFO - Starting Enhanced AI Services with Gemini AI...
+2025-07-03 13:46:42,408 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-07-03 13:46:42,409 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-07-03 13:46:49,856 - ai_services - INFO - Enhanced text analyzer initialized successfully
+2025-07-03 13:46:49,861 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-07-03 13:46:49,861 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-07-03 13:46:55,957 - ai_services - INFO - Enhanced text analyzer initialized successfully
+2025-07-03 13:46:55,957 - ai_services - INFO - Text analyzer initialized successfully
+2025-07-03 13:46:55,957 - ai_services - INFO - Gemini AI initialized successfully
+2025-07-03 13:46:55,957 - ai_services - INFO - Image analyzer initialized successfully
+2025-07-03 13:46:55,959 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: mps
+2025-07-03 13:46:55,959 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-07-03 13:47:01,745 - ai_services - INFO - Embedding service initialized successfully
+2025-07-03 13:47:02,326 - ai_services - INFO - Advanced matching service initialized successfully
+2025-07-03 13:47:02,326 - ai_services - INFO - Enhanced AI Services initialized successfully
+2025-07-03 13:52:06,361 - ai_services - INFO - Received request for enhanced text analysis
+2025-07-03 13:52:06,362 - ai_services - INFO - Payload description: Lost a hp backpack with blue strips near library...
+2025-07-03 13:52:06,362 - ai_services - INFO - Performing enhanced text analysis with Gemini AI
+2025-07-03 13:52:06,363 - ai_services - INFO - Starting enhanced text analysis with Gemini AI
+2025-07-03 13:52:11,307 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-07-03 13:52:11,307 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-07-03 13:52:11,307 - ai_services - INFO - hi
+2025-07-03 13:52:11,321 - ai_services - INFO - Generating embeddings
+2025-07-03 14:11:55,187 - ai_services - INFO - Received request for enhanced text analysis
+2025-07-03 14:11:55,189 - ai_services - INFO - Payload description: lost near library , black in color with blue stripes...
+2025-07-03 14:11:55,190 - ai_services - INFO - Performing enhanced text analysis with Gemini AI
+2025-07-03 14:11:55,190 - ai_services - INFO - Starting enhanced text analysis with Gemini AI
+2025-07-03 14:12:02,455 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-07-03 14:12:02,455 - ai_services - INFO - Enhanced text analysis completed successfully
+2025-07-03 14:12:02,455 - ai_services - INFO - hi
+2025-07-03 14:12:02,472 - ai_services - INFO - Received image analysis request with 1 URLs
+2025-07-03 14:12:02,472 - ai_services - INFO - Image URL 1: https://res.cloudinary.com/lost-and-found-/image/upload/v1751532113/lost-found/general/xq0aemn6r1jwro0jcylc.png
+2025-07-03 14:12:02,472 - ai_services - INFO - Starting image analysis process
+2025-07-03 14:12:02,473 - ai_services - INFO - Starting analysis of 1 images
+2025-07-03 14:12:02,474 - ai_services - INFO - Processing main image: https://res.cloudinary.com/lost-and-found-/image/upload/v1751532113/lost-found/general/xq0aemn6r1jwro0jcylc.png
+2025-07-03 14:12:02,474 - ai_services - INFO - Downloading image from: https://res.cloudinary.com/lost-and-found-/image/upload/v1751532113/lost-found/general/xq0aemn6r1jwro0jcylc.png
+2025-07-03 14:12:04,067 - ai_services - INFO - Successfully loaded image: (600, 511, 3)
+2025-07-03 14:12:04,068 - ai_services - INFO - Performing color analysis
+2025-07-03 14:12:04,758 - ai_services - INFO - Performing object detection
+2025-07-03 14:12:04,769 - ai_services - INFO - Performing Gemini AI analysis
+2025-07-03 14:12:08,818 - ai_services - INFO - Gemini analysis completed - Description: This is an HP brand backpack. It's primarily blue ...
+2025-07-03 14:12:08,819 - ai_services - INFO - Image analysis completed successfully
+2025-07-03 14:12:08,820 - ai_services - INFO - Image analysis completed successfully: {'objects': ['rectangular_object', 'irregular_object'], 'colors': [{'color': 'black', 'percentage': np.float64(39.5)}, {'color': 'black', 'percentage': np.float64(20.4)}, {'color': 'black', 'percentage': np.float64(19.6)}], 'gemini_description': "This is an HP brand backpack. It's primarily blue with gray and light gray accents. The backpack appears to be made of a durable fabric material. It features a large main compartment, a smaller front pocket, and adjustable shoulder straps. The HP logo is prominently displayed on the front.  The backpack looks to be in new or excellent used condition, showing no significant wear or tear in the image.  It's a medium-sized backpack, suitable for carrying books, a laptop, and other personal items.  The zippers appear to be functional and in good condition.", 'gemini_tags': ['backpack', 'blue', 'gray', 'HP', 'laptop backpack', 'polyester', 'nylon', 'school bag', 'travel bag', 'new']}
+2025-07-03 14:12:08,854 - ai_services - INFO - Generating embeddings

@@ -21,8 +21,7 @@ class AIService {
     try {
       logger.info('Starting enhanced AI analysis for item', itemData.title);
       const { title, description, category, images, tags } = itemData;
-      console.log("a", itemData.description);
-      
+    
       // Step 1: Enhanced text analysis using Gemini AI (only description)
       const textAnalysis = await this.analyzeTextEnhanced(description);
    
@@ -30,7 +29,9 @@ class AIService {
       // Step 2: Analyze images (if any)
       let imageAnalysis = null;
       if (images && images.length > 0) {
+        logger.info("im",images)
         imageAnalysis = await this.analyzeImages(images);
+        logger.info("im",imageAnalysis)
       }
       
       // Step 3: Generate combined embeddings
@@ -82,7 +83,7 @@ class AIService {
   async analyzeTextEnhanced(description: string): Promise<any> {
     try {
       logger.info('Performing enhanced text analysis with Gemini AI');
-      logger.info("description", description);
+   
       
       const response = await axios.post(`${this.baseURL}/analyze/text-enhanced`, {
         description: description  // ✅ Proper JSON structure
@@ -188,10 +189,10 @@ async findSimilarItems(sourceItem: any, targetType: string): Promise<MatchResult
       title:sourceItem.title,
       image:sourceItem.images[0],
       description:sourceItem.description,
-      // text_embedding: sourceItem.aiMetadata?.textEmbedding || [],
-      // image_features: sourceItem.aiMetadata?.imageFeatures || [],
-      // text_analysis: sourceItem.aiMetadata?.textAnalysis || {},
-      // image_analysis: sourceItem.aiMetadata?.imageAnalysis || {},
+      text_embedding: sourceItem.aiMetadata?.textEmbedding || [],
+      image_features: sourceItem.aiMetadata?.imageFeatures || [],
+      text_analysis: sourceItem.aiMetadata?.textAnalysis || {},
+      image_analysis: sourceItem.aiMetadata?.imageAnalysis || {},
       category: sourceItem.category,
       location: sourceItem.location,
       date_lost_found: sourceItem.dateLostFound,
@@ -201,12 +202,12 @@ async findSimilarItems(sourceItem: any, targetType: string): Promise<MatchResult
     // Transform candidate items to match Item interface
     const transformedCandidateItems= candidateItems.map(item => ({
       _id: item._id.toString(),
-      // text_embedding: item.aiMetadata?.textEmbedding || [],
-      // image_features: item.aiMetadata?.imageFeatures || [],
-      // text_analysis: item.aiMetadata?.textAnalysis || {},
+      text_embedding: item.aiMetadata?.textEmbedding || [],
+      image_features: item.aiMetadata?.imageFeatures || [],
+      text_analysis: item.aiMetadata?.textAnalysis || {},
       description:item.description,
       title:item.title,
-      // image_analysis: item.aiMetadata?.imageAnalysis || {},
+      image_analysis: item.aiMetadata?.imageAnalysis || {},
       image:item.images[0],
       category: item.category,
       location: item.location,
@@ -287,26 +288,23 @@ async findSimilarItems(sourceItem: any, targetType: string): Promise<MatchResult
     }
   }
 
-  private async analyzeImages(imagePaths: string[]): Promise<any> {
+  private async analyzeImages(imageUrls: string[]): Promise<any> {
     try {
-      const formData = new FormData();
-      
-      for (let i = 0; i < imagePaths.length; i++) {
-        if (fs.existsSync(imagePaths[i])) {
-          formData.append('images', fs.createReadStream(imagePaths[i]));
-        }
-      }
-
-      const response = await axios.post(`${this.baseURL}/analyze/images`, formData, {
+      // Your FastAPI endpoint expects URLs, not files
+      const requestData = {
+        image_urls: imageUrls
+      };
+  
+      const response = await axios.post(`${this.baseURL}/analyze/images`, requestData, {
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
-          ...formData.getHeaders()
+          'Content-Type': 'application/json'
         },
         timeout: this.timeout
       });
-
+  
       return response.data;
-
+  
     } catch (error) {
       logger.error('Image analysis failed:', error);
       return this.getFallbackImageAnalysis();

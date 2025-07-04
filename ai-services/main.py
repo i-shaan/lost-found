@@ -141,17 +141,101 @@ async def analyze_text(
 
 @app.post("/analyze/images", response_model=ImageAnalysisResponse)
 async def analyze_images(
-    images: list[UploadFile] = File(...),
+    request: ImageAnalysisRequest,  
     api_key: str = Depends(verify_api_key)
 ):
     try:
-        logger.info(f"Analyzing {len(images)} images")
-        analysis = await image_analyzer.analyze(images)
+        logger.info(f"Received image analysis request with {len(request.image_urls)} URLs")
+        
+        # Log the URLs for debugging
+        for i, url in enumerate(request.image_urls):
+            logger.info(f"Image URL {i+1}: {url}")
+        
+        # Validate that URLs are provided
+        if not request.image_urls:
+            raise HTTPException(status_code=400, detail="No image URLs provided")
+        
+        # Validate URLs (basic validation)
+        for url in request.image_urls:
+            if not url.startswith(('http://', 'https://')):
+                raise HTTPException(status_code=400, detail=f"Invalid URL format: {url}")
+        
+        logger.info("Starting image analysis process")
+        
+        # Call the image analyzer
+        analysis = await image_analyzer.analyze(request.image_urls)
+        
+        logger.info(f"Image analysis completed successfully: {analysis}")
+        
         return ImageAnalysisResponse(**analysis)
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         logger.error(f"Image analysis failed: {str(e)}")
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Image analysis failed: {str(e)}")
+
+# Add a debug endpoint to test the image analyzer directly
+@app.post("/analyze/images/debug")
+async def debug_image_analysis(
+    request: ImageAnalysisRequest,
+    api_key: str = Depends(verify_api_key)
+):
+    try:
+        logger.info("Debug: Image analysis request received")
+        logger.info(f"Request data: {request.dict()}")
+        
+        # Check if image analyzer is ready
+        if not image_analyzer.is_ready():
+            return {
+                "error": "Image analyzer not ready",
+                "image_analyzer_ready": image_analyzer.is_ready(),
+                "has_analyze_method": hasattr(image_analyzer, 'analyze')
+            }
+        
+        # Test image loading for first URL
+        if request.image_urls:
+            test_url = request.image_urls[0]
+            logger.info(f"Testing image loading for: {test_url}")
+            
+            try:
+                # This will test the image loading process
+                test_image = await image_analyzer._load_image_from_url(test_url)
+                logger.info(f"Successfully loaded test image: {test_image.shape}")
+                
+                # Now try full analysis
+                analysis = await image_analyzer.analyze(request.image_urls)
+                
+                return {
+                    "success": True,
+                    "analysis": analysis,
+                    "test_image_shape": test_image.shape,
+                    "image_analyzer_ready": image_analyzer.is_ready()
+                }
+                
+            except Exception as e:
+                logger.error(f"Debug analysis failed: {str(e)}")
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                    "image_analyzer_ready": image_analyzer.is_ready()
+                }
+        
+        return {
+            "error": "No image URLs provided",
+            "image_analyzer_ready": image_analyzer.is_ready()
+        }
+        
+    except Exception as e:
+        logger.error(f"Debug endpoint failed: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
 
 @app.post("/embeddings/generate", response_model=EmbeddingResponse)
 async def generate_embeddings(

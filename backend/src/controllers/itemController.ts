@@ -6,13 +6,14 @@ import { aiService } from '../services/aiService';
 import notificationService from '../services/notificationService';
 import { logger } from '../utils/loggers';
 import { MatchResult } from '../types';
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
+import { uploadToCloudinary,deleteFromCloudinary } from '../utils/cloudinary';
 import fs from 'fs';
 import path from 'path';
-const { Types } = mongoose;
+// const { Types } = mongoose;
 import { Server as SocketIOServer } from 'socket.io';
 import { ParsedQs } from 'qs';
-
+import ResolutionModel from '../models/Resolution';
 export interface GetItemsQuery extends ParsedQs {
   type?: 'lost' | 'found';
   category?: string;
@@ -59,7 +60,29 @@ const parseNumericQuery = (value: string | undefined, defaultValue: number, min?
   if (max !== undefined && parsed > max) return max;
   return parsed;
 };
-
+function extractPublicIdFromUrl(url: string): string | null {
+  try {
+    // Cloudinary URL format: https://res.cloudinary.com/cloud_name/image/upload/v1234567890/folder/public_id.format
+    const urlParts = url.split('/');
+    const uploadIndex = urlParts.findIndex(part => part === 'upload');
+    
+    if (uploadIndex === -1) return null;
+    
+    // Get everything after 'upload' and before the file extension
+    const pathAfterUpload = urlParts.slice(uploadIndex + 1).join('/');
+    
+    // Remove version number if present (starts with 'v' followed by numbers)
+    const pathWithoutVersion = pathAfterUpload.replace(/^v\d+\//, '');
+    
+    // Remove file extension
+    const publicId = pathWithoutVersion.replace(/\.[^/.]+$/, '');
+    
+    return publicId;
+  } catch (error) {
+    logger.error('Error extracting public_id from URL:', error);
+    return null;
+  }
+}
 class ItemController {
   async createItem(req: CustomRequest, res: Response): Promise<void> {
     try {
@@ -69,14 +92,14 @@ class ItemController {
       
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        logger.info('Validation errors:', errors.array()); // Add this line
+        logger.info('Validation errors:', errors.array());
         res.status(400).json({
           success: false,
           errors: errors.array()
         });
         return;
       }
-
+  
       const {
         title,
         description,
@@ -87,7 +110,7 @@ class ItemController {
         reward,
         contactPreference
       } = req.body;
-
+  
       // Validate required fields
       if (!title?.trim() || !description?.trim() || !category || !type || !location?.trim()) {
         res.status(400).json({
@@ -96,7 +119,7 @@ class ItemController {
         });
         return;
       }
-
+  
       // Validate date
       const parsedDate = new Date(dateLostFound);
       if (isNaN(parsedDate.getTime())) {
@@ -106,25 +129,56 @@ class ItemController {
         });
         return;
       }
-
-      const images = req.files ? (req.files as Express.Multer.File[]).map(file => file.path) : [];
-
+  
+      // Handle image uploads to Cloudinary
+      let imageUrls: string[] = [];
+      
+      if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+        try {
+          logger.info(`Uploading ${req.files.length} images to Cloudinary`);
+          
+          // Upload all images to Cloudinary in parallel
+          const uploadPromises = req.files.map(async (file: Express.Multer.File) => {
+            const result = await uploadToCloudinary(file.buffer, {
+              folder: 'lost-found/general',
+              transformation: [
+                { width: 800, height: 600, crop: 'limit' },
+                { quality: 'auto' },
+                { format: 'webp' }
+              ]
+            });
+            return result.secure_url;
+          });
+  
+          imageUrls = await Promise.all(uploadPromises);
+          logger.info(`Successfully uploaded ${imageUrls.length} images to Cloudinary`);
+          
+        } catch (uploadError) {
+          logger.error('Error uploading images to Cloudinary:', uploadError);
+          res.status(500).json({
+            success: false,
+            message: 'Failed to upload images to Cloudinary'
+          });
+          return;
+        }
+      }
+  
       // Step 1: Analyze item with AI
       logger.info(`Starting AI analysis for ${type} item: ${title}`);
       const aiAnalysis = await aiService.analyzeItem({
         title: title.trim(),
         description: description.trim(),
         category,
-        images,
+        images: imageUrls, // Use Cloudinary URLs instead of local paths
       });
-
+  
       // Step 2: Create item with AI metadata
       const newItem = new ItemModel({
         title: title.trim(),
         description: description.trim(),
         category,
         type,
-        images,
+        images: imageUrls, // Store Cloudinary URLs
         location: location.trim(),
         dateLostFound: parsedDate,
         reporter: req.user?.id,
@@ -133,14 +187,14 @@ class ItemController {
         aiMetadata: aiAnalysis,
         status: 'active'
       });
-
+  
       const savedItem = await newItem.save();
-
+  
       // Step 3: Find matches using AI services
       logger.info(`Finding AI-powered matches for ${type} item: ${savedItem._id}`);
       const oppositeType = type === 'lost' ? 'found' : 'lost';
       const matches = await aiService.findSimilarItems(savedItem, oppositeType);
-
+  
       // Step 4: Update item with matches and notify users
       if (matches.length > 0) {
         savedItem.matches = matches.map((match: MatchResult) => ({
@@ -150,16 +204,16 @@ class ItemController {
           createdAt: new Date()
         }));
         await savedItem.save();
-
+  
         // Send notifications to matched item owners
         await notificationService.notifyMatches(savedItem, matches, req.io);
       }
-
+  
       // Step 5: Update user statistics
       await User.findByIdAndUpdate(req.user?.id, {
         $inc: { itemsPosted: 1 }
       });
-
+  
       res.status(201).json({
         success: true,
         data: {
@@ -169,7 +223,7 @@ class ItemController {
         },
         message: `${type.charAt(0).toUpperCase() + type.slice(1)} item created successfully${matches.length > 0 ? ` with ${matches.length} potential matches found` : ''}`
       });
-
+  
     } catch (error) {
       logger.error('Error creating item:', error);
       res.status(500).json({
@@ -332,10 +386,11 @@ class ItemController {
         return;
       }
       
+      
       const item = await ItemModel.findById(id)
-        .populate('reporter', 'name avatar reputation')
+        .populate('reporter', 'name avatar reputation email')
         .populate('matches.itemId', 'title description images type category location dateLostFound status');
-
+      logger.info(item)
       if (!item) {
         res.status(404).json({
           success: false,
@@ -368,7 +423,7 @@ class ItemController {
   async getItemMatches(req: CustomRequest, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { limit = '10', threshold = '0.5' } = req.query;
+      const { limit = '10' } = req.query;
   
       if (!id || !isValidObjectId(id)) {
         res.status(400).json({
@@ -395,54 +450,62 @@ class ItemController {
         });
         return;
       }
-
-      const limitNum = parseNumericQuery(limit, 10, 1, 50);
-      const thresholdNum = typeof threshold === 'string' ? parseFloat(threshold) || 0.5 : 0.5;
-      
-      if (thresholdNum < 0 || thresholdNum > 1) {
-        res.status(400).json({
-          success: false,
-          message: 'Threshold must be between 0 and 1'
-        });
-        return;
-      }
   
-      // Populate the entire item with matches populated
-      const populatedItem = await ItemModel.findById(id).populate({
-        path: 'matches.itemId',
-        select: 'title description images type category location dateLostFound status reporter',
-        populate: {
-          path: 'reporter',
-          select: 'name avatar reputation'
-        }
+      const limitNum = parseNumericQuery(limit, 10, 1, 50);
+      // const thresholdNum = typeof threshold === 'string' ? parseFloat(threshold) || 0.5 : 0.5;
+      
+      // if (thresholdNum < 0 || thresholdNum > 1) {
+      //   res.status(400).json({
+      //     success: false,
+      //     message: 'Threshold must be between 0 and 1'
+      //   });
+      //   return;
+      // }
+  
+      // Get the opposite type for finding similar items
+      const oppositeType = item.type === 'lost' ? 'found' : 'lost';
+      
+      // Find similar items using AI service
+      logger.info(`Finding AI-powered matches for ${item.type} item: ${item._id}`);
+      const aiMatches = await aiService.findSimilarItems(item, oppositeType);
+  
+      // Filter matches by threshold and limit
+      const filteredMatches = aiMatches.slice(0, limitNum);
+  
+      // Get the item IDs from filtered matches
+      const matchedItemIds = filteredMatches.map(match => match.item_id);
+  
+      // Populate the matched items with full details
+      const populatedItems = await ItemModel.find({
+        _id: { $in: matchedItemIds }
+      })
+      .select('title description images type category location dateLostFound status reporter')
+      .populate({
+        path: 'reporter',
+        select: 'name avatar reputation email'
       });
   
-      if (!populatedItem) {
-        res.status(404).json({
-          success: false,
-          message: 'Item not found'
-        });
-        return;
-      }
+      // Create a map for quick lookup
+      const itemMap = new Map();
+      populatedItems.forEach(item => {
+        itemMap.set((item._id as Types.ObjectId).toString(), item);
+      });
   
-      // Filter and map the populated matches
-      const matchesWithSimilarity = populatedItem.matches
-        ?.filter(match => match.confidence >= thresholdNum)
-        .slice(0, limitNum)
-        .map(match => ({
-          item: match.itemId,
-          similarity: match.confidence,
-          reasons: match.reasons,
-          matchedAt: match.createdAt
-        })) || [];
+      // Map the results to match the existing format
+      const matchesWithSimilarity = filteredMatches.map(match => ({
+        item: itemMap.get(match.item_id),
+        similarity: match.confidence,
+        reasons: match.reasons,
+        matchedAt: new Date() // Current timestamp as this is dynamically generated
+      })).filter(match => match.item); // Filter out any items that weren't found
   
       res.json({
         success: true,
         data: {
           itemId: id,
           matches: matchesWithSimilarity,
-          totalMatches: item.matches?.length || 0,
-          filteredCount: matchesWithSimilarity.length
+          totalMatches: aiMatches.length, // Total AI matches found
+          filteredCount: matchesWithSimilarity.length // After threshold and limit filtering
         }
       });
   
@@ -609,7 +672,7 @@ class ItemController {
   async deleteItem(req: CustomRequest, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-
+  
       if (!id || !isValidObjectId(id)) {
         res.status(400).json({
           success: false,
@@ -617,7 +680,7 @@ class ItemController {
         });
         return;
       }
-
+  
       const item = await ItemModel.findById(id);
       if (!item) {
         res.status(404).json({
@@ -626,7 +689,7 @@ class ItemController {
         });
         return;
       }
-
+  
       // Check if user owns the item
       if (item.reporter.toString() !== req.user?.id) {
         res.status(403).json({
@@ -635,35 +698,56 @@ class ItemController {
         });
         return;
       }
-
-      // Delete associated images
+  
+      // Delete associated images from Cloudinary
       if (item.images && item.images.length > 0) {
-        for (const imagePath of item.images) {
-          safeDeleteFile(imagePath);
+        try {
+          logger.info(`Deleting ${item.images.length} images from Cloudinary for item: ${id}`);
+          
+          const deletePromises = item.images.map(async (imageUrl: string) => {
+            try {
+              // Extract public_id from Cloudinary URL
+              const publicId = extractPublicIdFromUrl(imageUrl);
+              if (publicId) {
+                await deleteFromCloudinary(publicId);
+                logger.info(`Successfully deleted image: ${publicId}`);
+              }
+            } catch (imageError) {
+              logger.error(`Failed to delete image ${imageUrl}:`, imageError);
+              // Continue with other deletions even if one fails
+            }
+          });
+  
+          await Promise.allSettled(deletePromises);
+          logger.info(`Completed image deletion process for item: ${id}`);
+          
+        } catch (error) {
+          logger.error('Error during image deletion:', error);
+          // Continue with item deletion even if image deletion fails
         }
       }
-
+  
       // Remove item from other items' matches
       await ItemModel.updateMany(
         { 'matches.itemId': id },
         { $pull: { matches: { itemId: id } } }
       );
-
+  
       // Delete the item
       await ItemModel.findByIdAndDelete(id);
-
+  
       // Update user statistics
       await User.findByIdAndUpdate(req.user?.id, {
         $inc: { itemsPosted: -1 }
       });
-
+  
       logger.info(`Item deleted: ${id} by user: ${req.user?.id}`);
-
+  
       res.json({
         success: true,
         message: 'Item deleted successfully'
       });
-
+  
     } catch (error) {
       logger.error('Error deleting item:', error);
       res.status(500).json({
@@ -673,11 +757,21 @@ class ItemController {
       });
     }
   }
+  
 
-  async resolveItem(req: CustomRequest, res: Response): Promise<void> {
+  async resolveItem(req: CustomRequest, res: Response): Promise<void>  {
     try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          errors: errors.array()
+        });
+        return;
+      }
+
       const { id } = req.params;
-      const { resolution, matchedItemId } = req.body;
+      const { matchedItemId, resolution } = req.body;
 
       if (!id || !isValidObjectId(id)) {
         res.status(400).json({
@@ -687,17 +781,38 @@ class ItemController {
         return;
       }
 
-      const item = await ItemModel.findById(id);
-      if (!item) {
-        res.status(404).json({
+      if (!isValidObjectId(matchedItemId)) {
+        res.status(400).json({
           success: false,
-          message: 'Item not found'
+          message: 'Invalid matched item ID'
         });
         return;
       }
 
-      // Check if user owns the item
-      if (item.reporter.toString() !== req.user?.id) {
+      // Fetch both items with populated reporter
+      const [sourceItem, matchedItem] = await Promise.all([
+        ItemModel.findById(id).populate('reporter'),
+        ItemModel.findById(matchedItemId).populate('reporter')
+      ]);
+
+      if (!sourceItem) {
+        res.status(404).json({
+          success: false,
+          message: 'Source item not found'
+        });
+        return;
+      }
+
+      if (!matchedItem) {
+        res.status(404).json({
+          success: false,
+          message: 'Matched item not found'
+        });
+        return;
+      }
+
+      // Check if user owns the source item
+      if (sourceItem.reporter._id.toString() !== req.user?.id) {
         res.status(403).json({
           success: false,
           message: 'Not authorized to resolve this item'
@@ -705,67 +820,137 @@ class ItemController {
         return;
       }
 
-      // Check if item is already resolved
-      if (item.status === 'resolved') {
+      // Check if items are of opposite types
+      if (sourceItem.type === matchedItem.type) {
         res.status(400).json({
           success: false,
-          message: 'Item is already resolved'
+          message: 'Cannot resolve items of the same type'
         });
         return;
       }
 
-      // Update item status
-      item.status = 'resolved';
-      item.resolvedAt = new Date();
-      if (resolution && resolution.trim()) {
-        item.resolution = resolution.trim();
-      }
-      
-      if (matchedItemId && isValidObjectId(matchedItemId)) {
-        item.matchedItem = new Types.ObjectId(matchedItemId);
-        
-        // Also resolve the matched item if it exists
-        const matchedItem = await ItemModel.findById(matchedItemId);
-        if (matchedItem && matchedItem.status === 'active') {
-          matchedItem.status = 'resolved';
-          matchedItem.resolvedAt = new Date();
-          matchedItem.matchedItem = new mongoose.Types.ObjectId(item._id as string);
-          await matchedItem.save();
-        }
+      // Check if items are already resolved
+      if (sourceItem.status === 'resolved' || matchedItem.status === 'resolved') {
+        res.status(400).json({
+          success: false,
+          message: 'One or both items are already resolved'
+        });
+        return;
       }
 
-      await item.save();
-
-      // Update user statistics
-      await User.findByIdAndUpdate(req.user?.id, {
-        $inc: { itemsResolved: 1 }
+      // Check if there's already a pending resolution for these items
+      const existingResolution = await ResolutionModel.findOne({
+        $or: [
+          { sourceItemId: id, matchedItemId: matchedItemId },
+          { sourceItemId: matchedItemId, matchedItemId: id }
+        ],
+        status: 'pending',
+        expiresAt: { $gt: new Date() }
       });
 
-      // Send notification to users who had this item in their matches
-      // await notificationService.notifyItemResolved(item, req.io);
+      if (existingResolution) {
+        res.status(400).json({
+          success: false,
+          message: 'A resolution request is already pending for these items'
+        });
+        return;
+      }
 
-      logger.info(`Item resolved: ${id} by user: ${req.user?.id}`);
+      // Generate unique confirmation code
+      let confirmationCode;
+      let isUnique = false;
+      let attempts = 0;
+      const maxAttempts = 10;
 
-      res.json({
+      while (!isUnique && attempts < maxAttempts) {
+        confirmationCode = ResolutionModel.generateConfirmationCode();
+        const existing = await ResolutionModel.findOne({ 
+          confirmationCode,
+          status: 'pending',
+          expiresAt: { $gt: new Date() }
+        });
+        isUnique = !existing;
+        attempts++;
+      }
+
+      if (!isUnique) {
+        res.status(500).json({
+          success: false,
+          message: 'Failed to generate unique confirmation code. Please try again.'
+        });
+        return;
+      }
+
+      // Create resolution request
+      const resolutionRequest = new ResolutionModel({
+        sourceItemId: new Types.ObjectId(id),
+        matchedItemId: new Types.ObjectId(matchedItemId),
+        initiatedBy: new Types.ObjectId(req.user.id),
+        resolution: resolution.trim(),
+        confirmationCode,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+      });
+
+      await resolutionRequest.save();
+
+      // Send notification to the matched item owner
+      await notificationService.notifyUser(
+        matchedItem.reporter._id,
+        {
+          type: 'resolution_request',
+          title: '🤝 Resolution Request Received',
+          message: `Someone wants to resolve their ${sourceItem.type} item "${sourceItem.title}" with your ${matchedItem.type} item "${matchedItem.title}"`,
+          data: {
+            resolutionId: resolutionRequest._id,
+            sourceItem,
+            matchedItem,
+            resolution,
+            confirmationCode
+          }
+        },
+        req.io
+      );
+
+      logger.info(`Resolution request created: ${resolutionRequest._id} for items ${id} and ${matchedItemId}`);
+
+      res.status(201).json({
         success: true,
-        data: item,
-        message: 'Item marked as resolved successfully'
+        data: {
+          resolutionId: resolutionRequest._id,
+          confirmationCode,
+          expiresAt: resolutionRequest.expiresAt,
+          status: 'pending'
+        },
+        message: 'Resolution request created successfully. Please share the confirmation code with the other party.'
       });
 
     } catch (error) {
-      logger.error('Error resolving item:', error);
+      logger.error('Error creating resolution request:', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to resolve item',
+        message: 'Failed to create resolution request',
         error: process.env.NODE_ENV === 'development' ? (error as Error).message : 'Internal server error'
       });
     }
   }
 
-  async rerunMatching(req: CustomRequest, res: Response): Promise<void> {
+  /**
+   * Confirm item resolution with confirmation code
+   */
+  async confirmResolution(req: CustomRequest, res: Response): Promise<void>  {
     try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          errors: errors.array()
+        });
+        return;
+      }
+
       const { id } = req.params;
-      
+      const { confirmationCode } = req.body;
+
       if (!id || !isValidObjectId(id)) {
         res.status(400).json({
           success: false,
@@ -773,7 +958,181 @@ class ItemController {
         });
         return;
       }
+
+      // Find the resolution request
+      const resolutionRequest = await ResolutionModel.findOne({
+        $or: [
+          { sourceItemId: id },
+          { matchedItemId: id }
+        ],
+        confirmationCode: confirmationCode.toUpperCase(),
+        status: 'pending'
+      }).populate([
+        { path: 'sourceItemId', populate: { path: 'reporter' } },
+        { path: 'matchedItemId', populate: { path: 'reporter' } }
+      ]);
+
+      if (!resolutionRequest) {
+        res.status(404).json({
+          success: false,
+          message: 'Invalid confirmation code or resolution request not found'
+        });
+        return;
+      }
+
+      // Check if resolution has expired
+      if (resolutionRequest.isExpired()) {
+        resolutionRequest.status = 'expired';
+        await resolutionRequest.save();
+        
+        res.status(400).json({
+          success: false,
+          message: 'Resolution request has expired'
+        });
+        return;
+      }
+
+      // Check if user is authorized to confirm (must be the other party)
+      const sourceItem = resolutionRequest.sourceItemId as any;
+      const matchedItem = resolutionRequest.matchedItemId as any;
       
+      const isSourceOwner = sourceItem.reporter._id.toString() === req.user?.id;
+      const isMatchedOwner = matchedItem.reporter._id.toString() === req.user?.id;
+      const isInitiator = resolutionRequest.initiatedBy.toString() === req.user?.id;
+
+      if (!isSourceOwner && !isMatchedOwner) {
+        res.status(403).json({
+          success: false,
+          message: 'Not authorized to confirm this resolution'
+        });
+        return;
+      }
+
+      if (isInitiator) {
+        res.status(400).json({
+          success: false,
+          message: 'Cannot confirm your own resolution request'
+        });
+        return;
+      }
+
+      // Update resolution status
+      resolutionRequest.status = 'confirmed';
+      resolutionRequest.confirmedBy = new Types.ObjectId(req.user?.id);
+      resolutionRequest.confirmedAt = new Date();
+
+      // Update both items as resolved - following exact schema structure
+      const currentTime = new Date();
+      const updatePromises = [
+        ItemModel.findByIdAndUpdate(sourceItem._id, {
+          status: 'resolved',
+          resolvedAt: currentTime,
+          resolution: resolutionRequest.resolution,
+          matchedItem: matchedItem._id
+        }),
+        ItemModel.findByIdAndUpdate(matchedItem._id, {
+          status: 'resolved',
+          resolvedAt: currentTime,
+          resolution: resolutionRequest.resolution,
+          matchedItem: sourceItem._id
+        }),
+        resolutionRequest.save()
+      ];
+
+      await Promise.all(updatePromises);
+
+      // Send success notifications to both parties
+      const notifications: Array<{
+        userId: any;
+        payload: {
+          type: 'item_resolved';
+          title: string;
+          message: string;
+          data: any;
+        };
+      }> = [
+        {
+          userId: sourceItem.reporter._id,
+          payload: {
+            type: 'item_resolved',
+            title: '🎉 Item Resolution Confirmed!',
+            message: `Your ${sourceItem.type} item "${sourceItem.title}" has been successfully resolved!`,
+            data: {
+              item: sourceItem,
+              matchedItem,
+              resolution: resolutionRequest.resolution
+            }
+          }
+        },
+        {
+          userId: matchedItem.reporter._id,
+          payload: {
+            type: 'item_resolved',
+            title: '🎉 Item Resolution Confirmed!',
+            message: `Your ${matchedItem.type} item "${matchedItem.title}" has been successfully resolved!`,
+            data: {
+              item: matchedItem,
+              matchedItem: sourceItem,
+              resolution: resolutionRequest.resolution
+            }
+          }
+        }
+      ];
+
+      await Promise.all(
+        notifications.map(notification =>
+          notificationService.notifyUser(notification.userId, notification.payload, req.io)
+        )
+      );
+
+
+      // Update user statistics - increment itemsResolved
+      await Promise.all([
+        User.findByIdAndUpdate(sourceItem.reporter._id, {
+          $inc: { itemsResolved: 1 }
+        }),
+        User.findByIdAndUpdate(matchedItem.reporter._id, {
+          $inc: { itemsResolved: 1 }
+        })
+      ]);
+
+      logger.info(`Resolution confirmed: ${resolutionRequest._id} by user ${req.user?.id}`);
+
+      res.json({
+        success: true,
+        data: {
+          resolutionId: resolutionRequest._id,
+          confirmedAt: resolutionRequest.confirmedAt,
+          status: 'confirmed'
+        },
+        message: 'Resolution confirmed successfully! Both items have been marked as resolved.'
+      });
+
+    } catch (error) {
+      logger.error('Error confirming resolution:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to confirm resolution',
+        error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : 'Internal server error'
+      });
+    }
+  }
+
+  /**
+   * Get resolution status for an item
+   */
+  async getResolutionStatus(req: CustomRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+  
+      if (!id || !isValidObjectId(id)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid or missing item ID'
+        });
+        return;
+      }
+  
       const item = await ItemModel.findById(id);
       if (!item) {
         res.status(404).json({
@@ -782,62 +1141,596 @@ class ItemController {
         });
         return;
       }
-
-      // Check if user owns the item
-      if (item.reporter.toString() !== req.user?.id) {
-        res.status(403).json({
+  
+      // Check if user is authorized (must be item owner or matched item owner)
+      const isOwner = item.reporter.toString() === req.user?.id;
+  
+      if (!isOwner) {
+        // Check if user owns a matched item in any resolution
+        const hasMatchedResolution = await ResolutionModel.findOne({
+          $or: [
+            { sourceItemId: id },
+            { matchedItemId: id }
+          ]
+        }).populate([
+          { path: 'sourceItemId', select: 'reporter' },
+          { path: 'matchedItemId', select: 'reporter' }
+        ]);
+  
+        if (!hasMatchedResolution) {
+          res.status(403).json({
+            success: false,
+            message: 'Not authorized to view resolution status for this item'
+          });
+          return;
+        }
+  
+        // Type assertion for populated fields
+        const sourceItem = hasMatchedResolution.sourceItemId as any;
+        const matchedItem = hasMatchedResolution.matchedItemId as any;
+        
+        const isAuthorized = 
+          sourceItem.reporter.toString() === req.user?.id ||
+          matchedItem.reporter.toString() === req.user?.id;
+  
+        if (!isAuthorized) {
+          res.status(403).json({
+            success: false,
+            message: 'Not authorized to view resolution status for this item'
+          });
+          return;
+        }
+      }
+  
+      // Find the most recent resolution request for this item
+      const resolutionRequest = await ResolutionModel.findOne({
+        $or: [
+          { sourceItemId: id },
+          { matchedItemId: id }
+        ]
+      })
+      .sort({ createdAt: -1 })
+      .populate([
+        { path: 'sourceItemId', select: 'title type reporter' },
+        { path: 'matchedItemId', select: 'title type reporter' },
+        { path: 'initiatedBy', select: 'name' },
+        { path: 'confirmedBy', select: 'name' }
+      ]);
+  
+      if (!resolutionRequest) {
+        res.status(404).json({
           success: false,
-          message: 'Not authorized to rerun matching'
+          message: 'No resolution request found for this item'
         });
         return;
       }
-
-      // Check if item is already resolved
-      if (item.status === 'resolved') {
-        res.status(400).json({
-          success: false,
-          message: 'Cannot rerun matching for resolved items'
-        });
-        return;
+  
+      // Check if expired and update status
+      if (resolutionRequest.status === 'pending' && resolutionRequest.isExpired()) {
+        resolutionRequest.status = 'expired';
+        await resolutionRequest.save();
       }
-
-      const oppositeType = item.type === 'lost' ? 'found' : 'lost';
-      const matches = await aiService.findSimilarItems(item, oppositeType);
-
-      // Update matches
-      item.matches = matches.map((match: MatchResult) => ({
-        itemId: new Types.ObjectId(match.item_id),
-        confidence: match.confidence,
-        reasons: match.reasons,
-        createdAt: new Date()
-      }));
-
-      await item.save();
-
-      // Send notifications for new matches
-      // if (matches.length > 0) {
-      //   await notificationService.notifyMatches(item, matches, req.io);
-      // }
-
+  
       res.json({
         success: true,
         data: {
-          item,
-          matches,
-          matchCount: matches.length
-        },
-        message: `Found ${matches.length} potential matches`
+          resolutionId: resolutionRequest._id,
+          status: resolutionRequest.status,
+          resolution: resolutionRequest.resolution,
+          initiatedBy: resolutionRequest.initiatedBy,
+          confirmedBy: resolutionRequest.confirmedBy,
+          confirmedAt: resolutionRequest.confirmedAt,
+          expiresAt: resolutionRequest.expiresAt,
+          createdAt: resolutionRequest.createdAt,
+          sourceItem: resolutionRequest.sourceItemId,
+          matchedItem: resolutionRequest.matchedItemId
+        }
       });
-
+  
     } catch (error) {
-      logger.error('Error rerunning matching:', error);
+      logger.error('Error getting resolution status:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       res.status(500).json({
         success: false,
-        message: 'Failed to rerun matching',
-        error: process.env.NODE_ENV === 'development' ? (error as Error).message : 'Internal server error'
+        message: 'Failed to get resolution status',
+        error: process.env.NODE_ENV === 'development' ? errorMessage : 'Internal server error'
       });
     }
   }
+  // async resolveItem(req: CustomRequest, res: Response): Promise<void> {
+  //   try {
+  //     const { id } = req.params;
+  //     const { resolution, matchedItemId } = req.body;
+
+  //     if (!id || !isValidObjectId(id)) {
+  //       res.status(400).json({
+  //         success: false,
+  //         message: 'Invalid or missing item ID'
+  //       });
+  //       return;
+  //     }
+
+  //     const item = await ItemModel.findById(id);
+  //     if (!item) {
+  //       res.status(404).json({
+  //         success: false,
+  //         message: 'Item not found'
+  //       });
+  //       return;
+  //     }
+
+  //     // Check if user owns the item
+  //     if (item.reporter.toString() !== req.user?.id) {
+  //       res.status(403).json({
+  //         success: false,
+  //         message: 'Not authorized to resolve this item'
+  //       });
+  //       return;
+  //     }
+
+  //     // Check if item is already resolved
+  //     if (item.status === 'resolved') {
+  //       res.status(400).json({
+  //         success: false,
+  //         message: 'Item is already resolved'
+  //       });
+  //       return;
+  //     }
+
+  //     // Update item status
+  //     item.status = 'resolved';
+  //     item.resolvedAt = new Date();
+  //     if (resolution && resolution.trim()) {
+  //       item.resolution = resolution.trim();
+  //     }
+      
+  //     if (matchedItemId && isValidObjectId(matchedItemId)) {
+  //       item.matchedItem = new Types.ObjectId(matchedItemId);
+        
+  //       // Also resolve the matched item if it exists
+  //       const matchedItem = await ItemModel.findById(matchedItemId);
+  //       if (matchedItem && matchedItem.status === 'active') {
+  //         matchedItem.status = 'resolved';
+  //         matchedItem.resolvedAt = new Date();
+  //         matchedItem.matchedItem = new mongoose.Types.ObjectId(item._id as string);
+  //         await matchedItem.save();
+  //       }
+  //     }
+
+  //     await item.save();
+
+  //     // Update user statistics
+  //     await User.findByIdAndUpdate(req.user?.id, {
+  //       $inc: { itemsResolved: 1 }
+  //     });
+
+  //     // Send notification to users who had this item in their matches
+  //     // await notificationService.notifyItemResolved(item, req.io);
+
+  //     logger.info(`Item resolved: ${id} by user: ${req.user?.id}`);
+
+  //     res.json({
+  //       success: true,
+  //       data: item,
+  //       message: 'Item marked as resolved successfully'
+  //     });
+
+  //   } catch (error) {
+  //     logger.error('Error resolving item:', error);
+  //     res.status(500).json({
+  //       success: false,
+  //       message: 'Failed to resolve item',
+  //       error: process.env.NODE_ENV === 'development' ? (error as Error).message : 'Internal server error'
+  //     });
+  //   }
+  // }
+
+  // async rerunMatching(req: CustomRequest, res: Response): Promise<void> {
+  //   try {
+  //     const { id } = req.params;
+      
+  //     if (!id || !isValidObjectId(id)) {
+  //       res.status(400).json({
+  //         success: false,
+  //         message: 'Invalid or missing item ID'
+  //       });
+  //       return;
+  //     }
+      
+  //     const item = await ItemModel.findById(id);
+  //     if (!item) {
+  //       res.status(404).json({
+  //         success: false,
+  //         message: 'Item not found'
+  //       });
+  //       return;
+  //     }
+
+  //     // Check if user owns the item
+  //     if (item.reporter.toString() !== req.user?.id) {
+  //       res.status(403).json({
+  //         success: false,
+  //         message: 'Not authorized to rerun matching'
+  //       });
+  //       return;
+  //     }
+
+  //     // Check if item is already resolved
+  //     if (item.status === 'resolved') {
+  //       res.status(400).json({
+  //         success: false,
+  //         message: 'Cannot rerun matching for resolved items'
+  //       });
+  //       return;
+  //     }
+
+  //     const oppositeType = item.type === 'lost' ? 'found' : 'lost';
+  //     const matches = await aiService.findSimilarItems(item, oppositeType);
+
+  //     // Update matches
+  //     item.matches = matches.map((match: MatchResult) => ({
+  //       itemId: new Types.ObjectId(match.item_id),
+  //       confidence: match.confidence,
+  //       reasons: match.reasons,
+  //       createdAt: new Date()
+  //     }));
+
+  //     await item.save();
+
+  //     // Send notifications for new matches
+  //     // if (matches.length > 0) {
+  //     //   await notificationService.notifyMatches(item, matches, req.io);
+  //     // }
+
+  //     res.json({
+  //       success: true,
+  //       data: {
+  //         item,
+  //         matches,
+  //         matchCount: matches.length
+  //       },
+  //       message: `Found ${matches.length} potential matches`
+  //     });
+
+  //   } catch (error) {
+  //     logger.error('Error rerunning matching:', error);
+  //     res.status(500).json({
+  //       success: false,
+  //       message: 'Failed to rerun matching',
+  //       error: process.env.NODE_ENV === 'development' ? (error as Error).message : 'Internal server error'
+  //     });
+  //   }
+  // }
+
+  // async resolveItem(req: CustomRequest, res: Response): Promise<void> {
+  //   try {
+  //     const { id } = req.params;
+  //     const { matchedItemId, resolution } = req.body;
+
+  //     if (!id || !isValidObjectId(id)) {
+  //       res.status(400).json({
+  //         success: false,
+  //         message: 'Invalid or missing item ID'
+  //       });
+  //       return;
+  //     }
+
+  //     // Validate input
+  //     if (!resolution || !resolution.trim()) {
+  //       res.status(400).json({
+  //         success: false,
+  //         message: 'Resolution details are required'
+  //       });
+  //       return;
+  //     }
+
+  //     if (!matchedItemId || !isValidObjectId(matchedItemId)) {
+  //       res.status(400).json({
+  //         success: false,
+  //         message: 'Valid matched item ID is required'
+  //       });
+  //       return;
+  //     }
+
+  //     // Check if item exists and belongs to user
+  //     const item = await ItemModel.findById(id);
+  //     if (!item) {
+  //       res.status(404).json({
+  //         success: false,
+  //         message: 'Item not found'
+  //       });
+  //       return;
+  //     }
+
+  //     if (item.reporter.toString() !== req.user?.id) {
+  //       res.status(403).json({
+  //         success: false,
+  //         message: 'Not authorized to resolve this item'
+  //       });
+  //       return;
+  //     }
+
+  //     // Check if matched item exists
+  //     const matchedItem = await ItemModel.findById(matchedItemId);
+  //     if (!matchedItem) {
+  //       res.status(404).json({
+  //         success: false,
+  //         message: 'Matched item not found'
+  //       });
+  //       return;
+  //     }
+
+  //     // Generate confirmation code
+  //     const confirmationCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+  //     // Create or update resolution record
+  //     const resolutionData = {
+  //       sourceItemId: new Types.ObjectId(id),
+  //       matchedItemId: new Types.ObjectId(matchedItemId),
+  //       resolution: resolution.trim(),
+  //       confirmationCode,
+  //       status: 'pending',
+  //       createdBy: new Types.ObjectId(req.user?.id),
+  //       createdAt: new Date()
+  //     };
+
+  //     const existingResolution = await Resolution.findOne({ sourceItemId: id });
+  //     let savedResolution;
+
+  //     if (existingResolution) {
+  //       savedResolution = await Resolution.findByIdAndUpdate(
+  //         existingResolution._id,
+  //         resolutionData,
+  //         { new: true }
+  //       );
+  //     } else {
+  //       savedResolution = await Resolution.create(resolutionData);
+  //     }
+
+  //     logger.info(`Resolution request created: ${savedResolution._id} by user: ${req.user?.id}`);
+
+  //     res.status(200).json({
+  //       success: true,
+  //       message: 'Resolution request submitted successfully',
+  //       data: {
+  //         confirmationCode,
+  //         resolutionId: savedResolution._id
+  //       }
+  //     });
+
+  //   } catch (error) {
+  //     logger.error('Error creating resolution request:', error);
+  //     res.status(500).json({
+  //       success: false,
+  //       message: 'Failed to submit resolution request',
+  //       error: process.env.NODE_ENV === 'development' ? (error as Error).message : 'Internal server error'
+  //     });
+  //   }
+  // }
+
+  // async confirmResolution(req: CustomRequest, res: Response): Promise<void> {
+  //   try {
+  //     const { id } = req.params;
+  //     const { confirmationCode } = req.body;
+
+  //     if (!id || !isValidObjectId(id)) {
+  //       res.status(400).json({
+  //         success: false,
+  //         message: 'Invalid or missing item ID'
+  //       });
+  //       return;
+  //     }
+
+  //     // Validate input
+  //     if (!confirmationCode || !confirmationCode.trim()) {
+  //       res.status(400).json({
+  //         success: false,
+  //         message: 'Confirmation code is required'
+  //       });
+  //       return;
+  //     }
+
+  //     // Find resolution by item ID and confirmation code
+  //     const resolution = await Resolution.findOne({
+  //       $or: [
+  //         { sourceItemId: id },
+  //         { matchedItemId: id }
+  //       ],
+  //       confirmationCode: confirmationCode.trim().toUpperCase()
+  //     });
+
+  //     if (!resolution) {
+  //       res.status(404).json({
+  //         success: false,
+  //         message: 'Invalid confirmation code or resolution not found'
+  //       });
+  //       return;
+  //     }
+
+  //     // Check if resolution is already confirmed
+  //     if (resolution.status === 'confirmed') {
+  //       res.status(400).json({
+  //         success: false,
+  //         message: 'Resolution already confirmed'
+  //       });
+  //       return;
+  //     }
+
+  //     // Verify user has permission (either owner of source or matched item)
+  //     const sourceItem = await ItemModel.findById(resolution.sourceItemId);
+  //     const matchedItem = await ItemModel.findById(resolution.matchedItemId);
+
+  //     if (!sourceItem || !matchedItem) {
+  //       res.status(404).json({
+  //         success: false,
+  //         message: 'Associated items not found'
+  //       });
+  //       return;
+  //     }
+
+  //     const hasPermission = sourceItem.reporter.toString() === req.user?.id || 
+  //                          matchedItem.reporter.toString() === req.user?.id;
+
+  //     if (!hasPermission) {
+  //       res.status(403).json({
+  //         success: false,
+  //         message: 'Not authorized to confirm this resolution'
+  //       });
+  //       return;
+  //     }
+
+  //     // Update resolution status
+  //     resolution.status = 'confirmed';
+  //     resolution.confirmedBy = new Types.ObjectId(req.user?.id);
+  //     resolution.confirmedAt = new Date();
+  //     await resolution.save();
+
+  //     // Update both items' status to resolved
+  //     await Promise.all([
+  //       ItemModel.findByIdAndUpdate(resolution.sourceItemId, { 
+  //         status: 'resolved',
+  //         resolvedAt: new Date(),
+  //         resolution: resolution.resolution,
+  //         matchedItem: resolution.matchedItemId
+  //       }),
+  //       ItemModel.findByIdAndUpdate(resolution.matchedItemId, { 
+  //         status: 'resolved',
+  //         resolvedAt: new Date(),
+  //         matchedItem: resolution.sourceItemId
+  //       })
+  //     ]);
+
+  //     // Update user statistics for both users
+  //     await Promise.all([
+  //       User.findByIdAndUpdate(sourceItem.reporter, {
+  //         $inc: { itemsResolved: 1 }
+  //       }),
+  //       User.findByIdAndUpdate(matchedItem.reporter, {
+  //         $inc: { itemsResolved: 1 }
+  //       })
+  //     ]);
+
+  //     logger.info(`Resolution confirmed: ${resolution._id} by user: ${req.user?.id}`);
+
+  //     res.status(200).json({
+  //       success: true,
+  //       message: 'Resolution confirmed successfully',
+  //       data: {
+  //         resolutionId: resolution._id,
+  //         status: resolution.status
+  //       }
+  //     });
+
+  //   } catch (error) {
+  //     logger.error('Error confirming resolution:', error);
+  //     res.status(500).json({
+  //       success: false,
+  //       message: 'Failed to confirm resolution',
+  //       error: process.env.NODE_ENV === 'development' ? (error as Error).message : 'Internal server error'
+  //     });
+  //   }
+  // }
+
+  // async getResolutionStatus(req: CustomRequest, res: Response): Promise<void> {
+  //   try {
+  //     const { id } = req.params;
+
+  //     if (!id || !isValidObjectId(id)) {
+  //       res.status(400).json({
+  //         success: false,
+  //         message: 'Invalid or missing item ID'
+  //       });
+  //       return;
+  //     }
+
+  //     // Check if item exists
+  //     const item = await ItemModel.findById(id);
+  //     if (!item) {
+  //       res.status(404).json({
+  //         success: false,
+  //         message: 'Item not found'
+  //       });
+  //       return;
+  //     }
+
+  //     // Find resolution for this item (either as source or matched item)
+  //     const resolution = await Resolution.findOne({
+  //       $or: [
+  //         { sourceItemId: id },
+  //         { matchedItemId: id }
+  //       ]
+  //     }).populate('sourceItemId matchedItemId', 'title description reporter status');
+
+  //     if (!resolution) {
+  //       res.status(200).json({
+  //         success: true,
+  //         data: {
+  //           hasResolution: false,
+  //           status: null
+  //         }
+  //       });
+  //       return;
+  //     }
+
+  //     // Check if user has permission to view this resolution
+  //     const sourceItem = resolution.sourceItemId as any;
+  //     const matchedItem = resolution.matchedItemId as any;
+      
+  //     const hasPermission = sourceItem.reporter.toString() === req.user?.id || 
+  //                          matchedItem.reporter.toString() === req.user?.id;
+
+  //     if (!hasPermission) {
+  //       res.status(403).json({
+  //         success: false,
+  //         message: 'Not authorized to view this resolution'
+  //       });
+  //       return;
+  //     }
+
+  //     // Prepare response data
+  //     const responseData: any = {
+  //       hasResolution: true,
+  //       status: resolution.status,
+  //       resolution: resolution.resolution,
+  //       createdAt: resolution.createdAt,
+  //       confirmedAt: resolution.confirmedAt,
+  //       sourceItem: {
+  //         id: sourceItem._id,
+  //         title: sourceItem.title,
+  //         description: sourceItem.description,
+  //         status: sourceItem.status
+  //       },
+  //       matchedItem: {
+  //         id: matchedItem._id,
+  //         title: matchedItem.title,
+  //         description: matchedItem.description,
+  //         status: matchedItem.status
+  //       }
+  //     };
+
+  //     // Include confirmation code only for the creator and if still pending
+  //     if (resolution.createdBy.toString() === req.user?.id && resolution.status === 'pending') {
+  //       responseData.confirmationCode = resolution.confirmationCode;
+  //     }
+
+  //     logger.info(`Resolution status fetched for item: ${id} by user: ${req.user?.id}`);
+
+  //     res.status(200).json({
+  //       success: true,
+  //       data: responseData
+  //     });
+
+  //   } catch (error) {
+  //     logger.error('Error fetching resolution status:', error);
+  //     res.status(500).json({
+  //       success: false,
+  //       message: 'Failed to fetch resolution status',
+  //       error: process.env.NODE_ENV === 'development' ? (error as Error).message : 'Internal server error'
+  //     });
+  //   }
+  // }
+
+
 }
 
 export default new ItemController();

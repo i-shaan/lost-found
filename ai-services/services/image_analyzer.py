@@ -1,477 +1,3 @@
-# import numpy as np
-# import requests
-# from PIL import Image
-# import torch
-# import torchvision.transforms as transforms
-# from torchvision.models import resnet50
-# import io
-# import cv2
-# import google.generativeai as genai
-# from sklearn.cluster import KMeans
-# import webcolors
-# from typing import Dict, List, Optional
-# import asyncio
-# import aiohttp
-# import base64
-# import os
-# from ultralytics import YOLO
-# import logging
-
-# # Configure logging
-# logging.basicConfig(level=logging.INFO)
-# logger = logging.getLogger(__name__)
-
-# class ImageAnalyzer:
-#     def __init__(self, gemini_api_key: Optional[str] = None):
-#         """
-#         Initialize the ImageAnalyzer with Gemini API and computer vision models.
-        
-#         Args:
-#             gemini_api_key (str): Your Gemini API key (will use env var if not provided)
-#         """
-#         # Configure Gemini API
-#         api_key = gemini_api_key or os.getenv('GEMINI_API_KEY')
-#         if not api_key:
-#             logger.warning("GEMINI_API_KEY not found. Gemini analysis will be disabled.")
-#             self.gemini_model = None
-#         else:
-#             try:
-#                 genai.configure(api_key=api_key)
-#                 self.gemini_model = genai.GenerativeModel('gemini-1.5-flash')
-#                 logger.info("Gemini API configured successfully")
-#             except Exception as e:
-#                 logger.error(f"Failed to configure Gemini API: {e}")
-#                 self.gemini_model = None
-        
-#         # Load pre-trained ResNet model for feature extraction
-#         try:
-#             self.resnet_model = resnet50(weights='IMAGENET1K_V1')
-#             self.resnet_model.eval()
-            
-#             # Remove the final classification layer for feature extraction
-#             self.feature_extractor = torch.nn.Sequential(*list(self.resnet_model.children())[:-1])
-#             logger.info("ResNet model loaded successfully")
-#         except Exception as e:
-#             logger.error(f"Failed to load ResNet model: {e}")
-#             self.resnet_model = None
-#             self.feature_extractor = None
-        
-#         # Load YOLO model for object detection
-#         try:
-#             # Try to load YOLO model, fallback to smaller version if needed
-#             model_path = 'yolov8n.pt'  # Nano version for faster inference
-#             self.yolo_model = YOLO(model_path)
-#             logger.info("YOLO model loaded successfully")
-#         except Exception as e:
-#             logger.warning(f"YOLO model not available: {e}. Using fallback object detection.")
-#             self.yolo_model = None
-        
-#         # Image preprocessing transforms
-#         self.transform = transforms.Compose([
-#             transforms.Resize((224, 224)),
-#             transforms.ToTensor(),
-#             transforms.Normalize(mean=[0.485, 0.456, 0.406], 
-#                                std=[0.229, 0.224, 0.225])
-#         ])
-        
-#         # Color clustering parameters
-#         self.n_colors = 5
-        
-#     async def analyze(self, image_url: str) -> Dict:
-#         """
-#         Comprehensive image analysis using multiple AI models.
-        
-#         Args:
-#             image_url (str): Cloudinary URL of the image
-            
-#         Returns:
-#             Dict: Analysis results including features, objects, colors, and descriptions
-#         """
-#         try:
-#             logger.info(f"Starting analysis for image: {image_url}")
-            
-#             # Download and preprocess image
-#             image_pil, image_cv = await self._download_and_preprocess_image(image_url)
-            
-#             # Run all analysis tasks concurrently
-#             analysis_tasks = []
-            
-#             # Always try to extract features and colors
-#             analysis_tasks.extend([
-#                 self._extract_features(image_pil),
-#                 self._extract_dominant_colors(image_pil),
-#                 self._extract_image_metadata(image_pil)
-#             ])
-            
-#             # Add object detection task
-#             if self.yolo_model:
-#                 analysis_tasks.append(self._detect_objects_yolo(image_cv))
-#             elif self.gemini_model:
-#                 analysis_tasks.append(self._detect_objects_gemini(image_url))
-#             else:
-#                 analysis_tasks.append(self._detect_objects_fallback(image_pil))
-            
-#             # Add Gemini analysis if available
-#             if self.gemini_model:
-#                 analysis_tasks.append(self._analyze_with_gemini(image_url))
-#             else:
-#                 analysis_tasks.append(self._create_fallback_gemini_analysis())
-            
-#             results = await asyncio.gather(*analysis_tasks, return_exceptions=True)
-            
-#             # Process results safely
-#             features = results[0] if not isinstance(results[0], Exception) else []
-#             colors = results[1] if not isinstance(results[1], Exception) else []
-#             metadata = results[2] if not isinstance(results[2], Exception) else {}
-#             objects = results[3] if not isinstance(results[3], Exception) else []
-#             gemini_analysis = results[4] if not isinstance(results[4], Exception) else {}
-            
-#             # Combine all analysis results
-#             analysis_result = {
-#                 "features": features,
-#                 "objects": objects,
-#                 "colors": colors,
-#                 "gemini_description": gemini_analysis.get("description", ""),
-#                 "gemini_tags": gemini_analysis.get("tags", []),
-#                 "metadata": metadata,
-#                 "confidence": self._calculate_confidence(objects, colors, gemini_analysis),
-#                 "analysis_timestamp": str(np.datetime64('now')),
-#                 "models_used": self._get_models_used()
-#             }
-            
-#             logger.info("Image analysis completed successfully")
-#             return analysis_result
-            
-#         except Exception as e:
-#             logger.error(f"Image analysis failed: {str(e)}")
-#             # Return a fallback result instead of raising exception
-#             return {
-#                 "features": [],
-#                 "objects": ["unknown"],
-#                 "colors": ["gray"],
-#                 "gemini_description": f"Analysis failed: {str(e)}",
-#                 "gemini_tags": ["error"],
-#                 "metadata": {},
-#                 "confidence": 0.1,
-#                 "analysis_timestamp": str(np.datetime64('now')),
-#                 "models_used": self._get_models_used(),
-#                 "error": str(e)
-#             }
-
-#     async def _download_and_preprocess_image(self, image_url: str) -> tuple:
-#         """Download and preprocess image for analysis."""
-#         try:
-#             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
-#                 async with session.get(image_url) as response:
-#                     if response.status != 200:
-#                         raise Exception(f"Failed to download image: HTTP {response.status}")
-                    
-#                     image_data = await response.read()
-                    
-#                     # Create PIL Image
-#                     image_pil = Image.open(io.BytesIO(image_data)).convert('RGB')
-                    
-#                     # Create OpenCV image
-#                     image_array = np.array(image_pil)
-#                     image_cv = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
-                    
-#                     return image_pil, image_cv
-#         except Exception as e:
-#             logger.error(f"Failed to download image: {e}")
-#             raise
-
-#     async def _extract_features(self, image: Image.Image) -> List[float]:
-#         """Extract deep features using ResNet."""
-#         if not self.feature_extractor:
-#             logger.warning("ResNet feature extractor not available")
-#             return []
-        
-#         try:
-#             # Preprocess image
-#             input_tensor = self.transform(image).unsqueeze(0)
-            
-#             # Extract features
-#             with torch.no_grad():
-#                 features = self.feature_extractor(input_tensor)
-#                 features = features.squeeze().numpy()
-                
-#                 # Reduce dimensionality for storage efficiency
-#                 features_reduced = features[:100].tolist()  # Take first 100 features
-                
-#             return features_reduced
-#         except Exception as e:
-#             logger.error(f"Feature extraction failed: {e}")
-#             return []
-
-#     async def _detect_objects_yolo(self, image_cv: np.ndarray) -> List[str]:
-#         """Detect objects using YOLO model."""
-#         try:
-#             results = self.yolo_model(image_cv, verbose=False)
-            
-#             objects = []
-#             for result in results:
-#                 for box in result.boxes:
-#                     class_id = int(box.cls)
-#                     class_name = result.names[class_id]
-#                     confidence = float(box.conf)
-                    
-#                     if confidence > 0.5:  # Confidence threshold
-#                         objects.append(class_name)
-            
-#             # Remove duplicates and return top objects
-#             unique_objects = list(set(objects))
-#             return unique_objects[:10]  # Return top 10 objects
-            
-#         except Exception as e:
-#             logger.error(f"YOLO object detection failed: {e}")
-#             return []
-
-#     async def _detect_objects_gemini(self, image_url: str) -> List[str]:
-#         """Detect objects using Gemini Vision API as fallback."""
-#         try:
-#             # Download image for Gemini
-#             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
-#                 async with session.get(image_url) as response:
-#                     image_data = await response.read()
-            
-#             # Convert to base64 for Gemini
-#             image_base64 = base64.b64encode(image_data).decode('utf-8')
-            
-#             prompt = """
-#             Analyze this image and identify all objects, items, and things visible in the image.
-#             Return only a comma-separated list of object names, no descriptions or explanations.
-#             Focus on concrete, identifiable objects.
-#             Example: chair, table, laptop, book, cup, plant
-#             """
-            
-#             response = await asyncio.to_thread(
-#                 self.gemini_model.generate_content,
-#                 [prompt, {"mime_type": "image/jpeg", "data": image_base64}]
-#             )
-            
-#             if response.text:
-#                 objects = [obj.strip().lower() for obj in response.text.split(',') if obj.strip()]
-#                 return objects[:15]  # Return top 15 objects
-            
-#             return []
-            
-#         except Exception as e:
-#             logger.error(f"Gemini object detection failed: {e}")
-#             return []
-
-#     async def _detect_objects_fallback(self, image: Image.Image) -> List[str]:
-#         """Fallback object detection using simple image analysis."""
-#         try:
-#             # Basic analysis based on image properties
-#             width, height = image.size
-#             aspect_ratio = width / height
-            
-#             objects = []
-            
-#             # Basic shape detection
-#             if aspect_ratio > 2:
-#                 objects.append("rectangular")
-#             elif aspect_ratio < 0.5:
-#                 objects.append("vertical")
-#             else:
-#                 objects.append("square")
-            
-#             # Basic color analysis for object hints
-#             colors = await self._extract_dominant_colors(image)
-#             if "black" in colors or "gray" in colors:
-#                 objects.extend(["electronic", "device"])
-#             if "brown" in colors:
-#                 objects.extend(["wooden", "leather"])
-#             if "metal" in colors or "silver" in colors:
-#                 objects.extend(["metal", "jewelry"])
-            
-#             return objects[:5]
-            
-#         except Exception as e:
-#             logger.error(f"Fallback object detection failed: {e}")
-#             return ["unknown"]
-
-#     async def _extract_dominant_colors(self, image: Image.Image) -> List[str]:
-#         """Extract dominant colors using K-means clustering."""
-#         try:
-#             # Convert to numpy array and reshape
-#             img_array = np.array(image)
-            
-#             # Resize image for faster processing
-#             if img_array.shape[0] > 300 or img_array.shape[1] > 300:
-#                 image_resized = image.resize((300, 300))
-#                 img_array = np.array(image_resized)
-            
-#             pixels = img_array.reshape(-1, 3)
-            
-#             # Use k-means to find dominant colors
-#             kmeans = KMeans(n_clusters=min(self.n_colors, len(pixels)), random_state=42, n_init=10)
-#             kmeans.fit(pixels)
-            
-#             colors = []
-#             for center in kmeans.cluster_centers_:
-#                 color_name = self._rgb_to_color_name(center.astype(int))
-#                 colors.append(color_name)
-            
-#             # Remove duplicates while preserving order
-#             unique_colors = []
-#             for color in colors:
-#                 if color not in unique_colors:
-#                     unique_colors.append(color)
-            
-#             return unique_colors
-            
-#         except Exception as e:
-#             logger.error(f"Color extraction failed: {e}")
-#             return ["unknown"]
-
-#     async def _analyze_with_gemini(self, image_url: str) -> Dict:
-#         """Get comprehensive analysis from Gemini Vision API."""
-#         try:
-#             # Download image for Gemini
-#             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
-#                 async with session.get(image_url) as response:
-#                     image_data = await response.read()
-            
-#             # Convert to base64 for Gemini
-#             image_base64 = base64.b64encode(image_data).decode('utf-8')
-            
-#             prompt = """
-#             Analyze this image comprehensively and provide:
-#             1. A very very detailed description of what you see - describe every minute minute detail you observe
-#             2. A list of relevant tags/keywords for categorization
-            
-#             Format your response as:
-#             DESCRIPTION: [your description here]
-#             TAGS: [comma-separated tags]
-            
-#             Focus on objects, colors, style, setting, and any notable features.
-#             """
-            
-#             response = await asyncio.to_thread(
-#                 self.gemini_model.generate_content,
-#                 [prompt, {"mime_type": "image/jpeg", "data": image_base64}]
-#             )
-            
-#             if response.text:
-#                 lines = response.text.strip().split('\n')
-#                 description = ""
-#                 tags = []
-                
-#                 for line in lines:
-#                     if line.startswith('DESCRIPTION:'):
-#                         description = line.replace('DESCRIPTION:', '').strip()
-#                     elif line.startswith('TAGS:'):
-#                         tags_text = line.replace('TAGS:', '').strip()
-#                         tags = [tag.strip().lower() for tag in tags_text.split(',') if tag.strip()]
-                
-#                 return {
-#                     "description": description,
-#                     "tags": tags
-#                 }
-            
-#             return {"description": "", "tags": []}
-            
-#         except Exception as e:
-#             logger.error(f"Gemini analysis failed: {e}")
-#             return {"description": "", "tags": []}
-
-#     async def _create_fallback_gemini_analysis(self) -> Dict:
-#         """Create fallback analysis when Gemini is not available."""
-#         return {
-#             "description": "Gemini analysis not available",
-#             "tags": ["unprocessed"]
-#         }
-
-#     async def _extract_image_metadata(self, image: Image.Image) -> Dict:
-#         """Extract basic image metadata."""
-#         try:
-#             metadata = {
-#                 "width": image.width,
-#                 "height": image.height,
-#                 "mode": image.mode,
-#                 "format": getattr(image, 'format', 'Unknown'),
-#                 "has_transparency": image.mode in ('RGBA', 'LA') or 'transparency' in image.info
-#             }
-            
-#             # Calculate aspect ratio
-#             if image.height > 0:
-#                 metadata["aspect_ratio"] = round(image.width / image.height, 2)
-            
-#             return metadata
-            
-#         except Exception as e:
-#             logger.error(f"Metadata extraction failed: {e}")
-#             return {}
-
-#     def _rgb_to_color_name(self, rgb: np.ndarray) -> str:
-#         """Convert RGB values to color names."""
-#         try:
-#             # Try to get exact color name
-#             color_name = webcolors.rgb_to_name((int(rgb[0]), int(rgb[1]), int(rgb[2])))
-#             return color_name.lower()
-#         except ValueError:
-#             # If exact match not found, find closest color
-#             r, g, b = rgb
-            
-#             # Define color ranges
-#             if r > 200 and g > 200 and b > 200:
-#                 return "white"
-#             elif r < 50 and g < 50 and b < 50:
-#                 return "black"
-#             elif r > 150 and g < 100 and b < 100:
-#                 return "red"
-#             elif r < 100 and g > 150 and b < 100:
-#                 return "green"
-#             elif r < 100 and g < 100 and b > 150:
-#                 return "blue"
-#             elif r > 150 and g > 150 and b < 100:
-#                 return "yellow"
-#             elif r > 150 and g < 100 and b > 150:
-#                 return "purple"
-#             elif r < 100 and g > 150 and b > 150:
-#                 return "cyan"
-#             elif r > 150 and g > 100 and b < 100:
-#                 return "orange"
-#             elif r > 100 and g > 100 and b > 100:
-#                 return "gray"
-#             else:
-#                 return "brown"
-
-#     def _calculate_confidence(self, objects: List, colors: List, gemini_analysis: Dict) -> float:
-#         """Calculate overall confidence score based on analysis results."""
-#         confidence = 0.0
-        
-#         # Base confidence from successful operations
-#         if objects and len(objects) > 0:
-#             confidence += 0.3
-#         if colors and len(colors) > 0:
-#             confidence += 0.2
-#         if gemini_analysis.get("description"):
-#             confidence += 0.3
-#         if gemini_analysis.get("tags"):
-#             confidence += 0.2
-        
-#         # Bonus for rich analysis
-#         if len(objects) > 5:
-#             confidence += 0.1
-#         if len(colors) > 3:
-#             confidence += 0.05
-#         if len(gemini_analysis.get("tags", [])) > 5:
-#             confidence += 0.05
-        
-#         return min(confidence, 1.0)
-
-#     def _get_models_used(self) -> Dict[str, bool]:
-
-#         """Get information about which models are being used."""
-#         return {
-#             "resnet": self.resnet_model is not None,
-#             "yolo": self.yolo_model is not None,
-#             "gemini": self.gemini_model is not None
-#         }
-
-
 import cv2
 import numpy as np
 from PIL import Image
@@ -480,7 +6,21 @@ import io
 import base64
 from typing import List, Dict, Any
 import os
+import requests
 from utils.logger import logger
+from fastapi import HTTPException
+from pydantic import BaseModel
+import traceback
+
+# Pydantic models for request/response
+class ImageAnalysisRequest(BaseModel):
+    image_urls: List[str]  # List of Cloudinary URLs
+
+class ImageAnalysisResponse(BaseModel):
+    objects: List[str]
+    colors: List[Dict[str, Any]]
+    gemini_description: str
+    gemini_tags: List[str]
 
 class ImageAnalyzer:
     def __init__(self):
@@ -490,8 +30,13 @@ class ImageAnalyzer:
     async def initialize(self):
         try:
             # Initialize Gemini AI
-            genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-            self.gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+            gemini_api_key = os.getenv("GEMINI_API_KEY")
+            if gemini_api_key:
+                genai.configure(api_key=gemini_api_key)
+                self.gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+                logger.info("Gemini AI initialized successfully")
+            else:
+                logger.warning("GEMINI_API_KEY not found - Gemini analysis will be disabled")
             
             self.ready = True
             logger.info("Image analyzer initialized successfully")
@@ -504,8 +49,10 @@ class ImageAnalyzer:
     def is_ready(self) -> bool:
         return self.ready
 
-    async def analyze(self, images) -> Dict[str, Any]:
-        if not images:
+    async def analyze(self, image_urls: List[str]) -> Dict[str, Any]:
+        """Analyze images from Cloudinary URLs"""
+        if not image_urls:
+            logger.warning("No image URLs provided")
             return self._get_empty_analysis()
 
         results = {
@@ -516,37 +63,78 @@ class ImageAnalyzer:
         }
 
         try:
+            logger.info(f"Starting analysis of {len(image_urls)} images")
+            
             # Process first image (main analysis)
-            main_image = await self._load_image(images[0])
+            main_image_url = image_urls[0]
+            logger.info(f"Processing main image: {main_image_url}")
+            
+            # Download and process image
+            main_image = await self._load_image_from_url(main_image_url)
             
             # Color analysis
+            logger.info("Performing color analysis")
             results["colors"] = self._analyze_colors(main_image)
             
             # Object detection (basic implementation)
+            logger.info("Performing object detection")
             results["objects"] = self._detect_objects(main_image)
             
             # Gemini AI analysis (if available)
             if self.gemini_model:
-                gemini_analysis = await self._analyze_with_gemini(images[0])
+                logger.info("Performing Gemini AI analysis")
+                gemini_analysis = await self._analyze_with_gemini(main_image_url)
                 results["gemini_description"] = gemini_analysis.get("description", "")
                 results["gemini_tags"] = gemini_analysis.get("tags", [])
+            else:
+                logger.info("Skipping Gemini analysis - not available")
 
+            logger.info("Image analysis completed successfully")
             return results
 
         except Exception as e:
             logger.error(f"Image analysis failed: {str(e)}")
+            logger.error(traceback.format_exc())
             return self._get_empty_analysis()
 
-    async def _load_image(self, image_file):
-        # Read image from uploaded file
-        contents = await image_file.read()
-        image = Image.open(io.BytesIO(contents))
-        
-        # Convert to OpenCV format
-        opencv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-        return opencv_image
+    async def _load_image_from_url(self, image_url: str):
+        """Load image from Cloudinary URL"""
+        try:
+            logger.info(f"Downloading image from: {image_url}")
+            
+            # Validate URL
+            if not image_url.startswith(('http://', 'https://')):
+                raise ValueError(f"Invalid URL format: {image_url}")
+            
+            # Download image from URL with timeout
+            response = requests.get(image_url, timeout=30)
+            response.raise_for_status()
+            
+            # Check if response contains image data
+            if not response.content:
+                raise ValueError("Empty response from URL")
+            
+            # Convert to PIL Image
+            try:
+                image = Image.open(io.BytesIO(response.content))
+            except Exception as e:
+                raise ValueError(f"Invalid image data: {str(e)}")
+            
+            # Convert to OpenCV format
+            opencv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+            
+            logger.info(f"Successfully loaded image: {opencv_image.shape}")
+            return opencv_image
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to download image from URL {image_url}: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Failed to download image: {str(e)}")
+        except Exception as e:
+            logger.error(f"Failed to load image from URL {image_url}: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Failed to process image: {str(e)}")
 
     def _analyze_colors(self, image) -> List[Dict[str, Any]]:
+        """Analyze dominant colors in the image"""
         try:
             # Resize image for faster processing
             small_image = cv2.resize(image, (150, 150))
@@ -557,34 +145,55 @@ class ImageAnalyzer:
             # Reshape to list of pixels
             pixels = rgb_image.reshape(-1, 3)
             
-            # Use K-means clustering to find dominant colors
-            from sklearn.cluster import KMeans
-            
-            kmeans = KMeans(n_clusters=5, random_state=42, n_init=10)
-            kmeans.fit(pixels)
-            
-            colors = []
-            labels = kmeans.labels_
-            
-            for i, center in enumerate(kmeans.cluster_centers_):
-                percentage = np.count_nonzero(labels == i) / len(labels) * 100
-                color_name = self._rgb_to_color_name(center)
+            # Try using K-means clustering to find dominant colors
+            try:
+                from sklearn.cluster import KMeans
+                kmeans = KMeans(n_clusters=5, random_state=42, n_init=10)
+                kmeans.fit(pixels)
                 
-                colors.append({
-                    "color": color_name,
-                    "percentage": round(percentage, 1)
-                })
-            
-            # Sort by percentage
-            colors.sort(key=lambda x: x["percentage"], reverse=True)
-            return colors[:3]  # Return top 3 colors
+                colors = []
+                labels = kmeans.labels_
+                
+                for i, center in enumerate(kmeans.cluster_centers_):
+                    percentage = np.count_nonzero(labels == i) / len(labels) * 100
+                    if percentage > 5:  # Only include colors that make up >5% of image
+                        color_name = self._rgb_to_color_name(center)
+                        colors.append({
+                            "color": color_name,
+                            "percentage": round(percentage, 1)
+                        })
+                
+                # Sort by percentage
+                colors.sort(key=lambda x: x["percentage"], reverse=True)
+                return colors[:3]  # Return top 3 colors
+                
+            except ImportError:
+                logger.warning("scikit-learn not available, using basic color analysis")
+                return self._basic_color_analysis(rgb_image)
 
         except Exception as e:
             logger.error(f"Color analysis failed: {str(e)}")
             return []
 
+    def _basic_color_analysis(self, rgb_image) -> List[Dict[str, Any]]:
+        """Basic color analysis without sklearn"""
+        try:
+            # Calculate average color of the entire image
+            avg_color = np.mean(rgb_image.reshape(-1, 3), axis=0)
+            primary_color = self._rgb_to_color_name(avg_color)
+            
+            # Simple analysis: return the dominant color
+            return [{
+                "color": primary_color,
+                "percentage": 100.0
+            }]
+            
+        except Exception as e:
+            logger.error(f"Basic color analysis failed: {str(e)}")
+            return []
+
     def _rgb_to_color_name(self, rgb):
-        # Simple color name mapping
+        """Convert RGB values to color name"""
         r, g, b = rgb
         
         color_map = {
@@ -616,15 +225,23 @@ class ImageAnalyzer:
         return closest_color
 
     def _detect_objects(self, image) -> List[str]:
+        """Basic object detection using contours"""
         try:
-            # Basic object detection using contours
+            # Convert to grayscale
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            
+            # Apply Gaussian blur
             blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+            
+            # Edge detection
             edges = cv2.Canny(blurred, 50, 150)
             
+            # Find contours
             contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             
             objects = []
+            shape_counts = {"rectangular": 0, "circular": 0, "irregular": 0}
+            
             for contour in contours:
                 area = cv2.contourArea(contour)
                 if area > 1000:  # Filter small objects
@@ -632,43 +249,52 @@ class ImageAnalyzer:
                     approx = cv2.approxPolyDP(contour, 0.02 * cv2.arcLength(contour, True), True)
                     
                     if len(approx) == 4:
-                        objects.append("rectangular_object")
+                        shape_counts["rectangular"] += 1
                     elif len(approx) > 8:
-                        objects.append("circular_object")
+                        shape_counts["circular"] += 1
                     else:
-                        objects.append("irregular_object")
+                        shape_counts["irregular"] += 1
             
-            return list(set(objects))[:5]  # Return unique objects, max 5
+            # Convert counts to object descriptions
+            for shape, count in shape_counts.items():
+                if count > 0:
+                    objects.append(f"{shape}_object")
+            
+            return objects[:5]  # Return max 5 objects
 
         except Exception as e:
             logger.error(f"Object detection failed: {str(e)}")
             return []
 
-    async def _analyze_with_gemini(self, image_file) -> Dict[str, Any]:
+    async def _analyze_with_gemini(self, image_url: str) -> Dict[str, Any]:
+        """Analyze image with Gemini AI"""
         try:
             if not self.gemini_model:
+                logger.warning("Gemini model not available")
                 return {"description": "", "tags": []}
 
-            # Reset file pointer
-            await image_file.seek(0)
-            contents = await image_file.read()
+            # Download image for Gemini
+            response = requests.get(image_url, timeout=30)
+            response.raise_for_status()
             
             # Convert to PIL Image for Gemini
-            image = Image.open(io.BytesIO(contents))
+            image = Image.open(io.BytesIO(response.content))
             
-            # Prompt for analysis
+            # Prompt for lost & found item analysis
             prompt = """
-            Analyze this image of a lost or found item. Provide:
-            1. A detailed description of the item
-            2. Key identifying features
-            3. Color, size, condition details
-            4. Any visible text, logos, or brands
+            Analyze this image of a lost or found item. Provide a detailed analysis including:
+            1. What type of item this is
+            2. Key identifying features (color, size, condition, brand, etc.)
+            3. Any visible text, logos, or distinctive markings
+            4. The item's apparent condition and age
+            5. Any unique characteristics that would help in identification
             
             Format your response as:
-            DESCRIPTION: [detailed description]
-            TAGS: [comma-separated key features and identifying details]
+            DESCRIPTION: [detailed description of the item]
+            TAGS: [comma-separated keywords: item type, colors, brands, conditions, materials, etc.]
             """
             
+            # Generate content with Gemini
             response = self.gemini_model.generate_content([prompt, image])
             
             # Parse response
@@ -678,12 +304,14 @@ class ImageAnalyzer:
             if response.text:
                 lines = response.text.split('\n')
                 for line in lines:
+                    line = line.strip()
                     if line.startswith('DESCRIPTION:'):
                         description = line.replace('DESCRIPTION:', '').strip()
                     elif line.startswith('TAGS:'):
                         tags_text = line.replace('TAGS:', '').strip()
                         tags = [tag.strip() for tag in tags_text.split(',') if tag.strip()]
 
+            logger.info(f"Gemini analysis completed - Description: {description[:50]}...")
             return {
                 "description": description,
                 "tags": tags[:10]  # Limit to 10 tags
@@ -694,6 +322,7 @@ class ImageAnalyzer:
             return {"description": "", "tags": []}
 
     def _get_empty_analysis(self) -> Dict[str, Any]:
+        """Return empty analysis result"""
         return {
             "objects": [],
             "colors": [],
@@ -701,11 +330,12 @@ class ImageAnalyzer:
             "gemini_tags": []
         }
 
-    async def generate_features(self, image_file) -> List[float]:
+    async def generate_features(self, image_url: str) -> List[float]:
+        """Generate numerical features from image for similarity matching"""
         try:
-            image = await self._load_image(image_file)
+            image = await self._load_image_from_url(image_url)
             
-            # Extract simple features (can be enhanced with deep learning)
+            # Extract simple features
             features = []
             
             # Color histogram features
@@ -713,12 +343,17 @@ class ImageAnalyzer:
                 hist = cv2.calcHist([image], [i], None, [32], [0, 256])
                 features.extend(hist.flatten())
             
-            # Texture features using Gabor filters
+            # Texture features
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             
             # Simple texture measures
             features.append(np.std(gray))  # Standard deviation
             features.append(np.mean(gray))  # Mean intensity
+            
+            # Edge density
+            edges = cv2.Canny(gray, 50, 150)
+            edge_density = np.sum(edges > 0) / (edges.shape[0] * edges.shape[1])
+            features.append(edge_density)
             
             # Pad or truncate to exactly 100 features
             if len(features) > 100:

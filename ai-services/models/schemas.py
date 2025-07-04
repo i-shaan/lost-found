@@ -48,7 +48,8 @@ class ItemData(BaseModel):
     location: str
     date_lost_found: str
     tags: Optional[List[str]] = []
-
+class ImageAnalysisRequest(BaseModel):
+    image_urls: List[str]
 class AdvancedMatchingRequest(BaseModel):
     source_item: ItemData
     candidate_items: List[ItemData]

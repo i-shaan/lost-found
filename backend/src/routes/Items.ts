@@ -9,35 +9,39 @@ const router = express.Router();
 
 import fs from 'fs';
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadPath = process.env.UPLOAD_PATH || './uploads';
+// const storage = multer.diskStorage({
+//   destination: (req, file, cb) => {
+//     const uploadPath = process.env.UPLOAD_PATH || './uploads';
     
-    // Ensure the directory exists
-    fs.mkdirSync(uploadPath, { recursive: true });
+//     // Ensure the directory exists
+//     fs.mkdirSync(uploadPath, { recursive: true });
     
-    cb(null, uploadPath);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+//     cb(null, uploadPath);
+//   },
+//   filename: (req, file, cb) => {
+//     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+//     cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+//   }
+// });
 
+const storage = multer.memoryStorage();
+// const upload = multer({
+//   storage,
+//   limits: {
+//     fileSize: parseInt(process.env.MAX_FILE_SIZE || '10485760') // 10MB
+//   },
+//   fileFilter: (req, file, cb) => {
+//     if (file.mimetype.startsWith('image/')) {
+//       cb(null, true);
+//     } else {
+//       cb(new Error('Only image files are allowed'));
+//     }
+//   }
+// });
 const upload = multer({
   storage,
-  limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE || '10485760') // 10MB
-  },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed'));
-    }
-  }
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit (optional)
 });
-
 // Validation rules
 const itemValidation = [
   body('title')
@@ -47,7 +51,7 @@ const itemValidation = [
 
   body('description')
     .trim()
-    .isLength({ min: 10, max: 2000 })
+    .isLength({ min: 5, max: 2000 })
     .withMessage('Description must be between 10 and 2000 characters'),
 
   body('category')
@@ -578,57 +582,171 @@ router.put('/:id', auth, upload.array('images', 5), itemValidation, itemControll
  */
 router.delete('/:id', auth, itemController.deleteItem as RequestHandler);
 
-// /**
-//  * @swagger
-//  * /items/{id}/resolve:
-//  *   post:
-//  *     summary: Mark an item as resolved
-//  *     tags: [Items]
-//  *     security:
-//  *       - bearerAuth: []
-//  *     parameters:
-//  *       - in: path
-//  *         name: id
-//  *         required: true
-//  *         schema:
-//  *           type: string
-//  *         description: Item ID
-//  *     requestBody:
-//  *       required: false
-//  *       content:
-//  *         application/json:
-//  *           schema:
-//  *             type: object
-//  *             properties:
-//  *               resolution:
-//  *                 type: string
-//  *                 maxLength: 500
-//  *                 description: Optional resolution details
-//  *               matchedItemId:
-//  *                 type: string
-//  *                 description: ID of the item this was matched with (if applicable)
-//  *     responses:
-//  *       200:
-//  *         description: Item marked as resolved successfully
-//  *         content:
-//  *           application/json:
-//  *             schema:
-//  *               type: object
-//  *               properties:
-//  *                 message:
-//  *                   type: string
-//  *                   example: Item marked as resolved
-//  *                 item:
-//  *                   $ref: '#/components/schemas/Item'
-//  *       401:
-//  *         description: Unauthorized
-//  *       403:
-//  *         description: Not authorized to resolve this item
-//  *       404:
-//  *         description: Item not found
-//  *       400:
-//  *         description: Item is already resolved
-//  */
-// router.post('/:id/resolve', auth, itemController.resolveItem as RequestHandler);
+/**
+ * @swagger
+ * /items/{id}/resolve:
+ *   post:
+ *     summary: Initiate item resolution
+ *     tags: [Items]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the item to resolve
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - matchedItemId
+ *               - resolution
+ *             properties:
+ *               matchedItemId:
+ *                 type: string
+ *                 description: ID of the matched item
+ *               resolution:
+ *                 type: string
+ *                 minLength: 10
+ *                 maxLength: 1000
+ *                 description: Details about how the items were reunited
+ *     responses:
+ *       201:
+ *         description: Resolution request created successfully
+ *       400:
+ *         description: Invalid request data
+ *       403:
+ *         description: Not authorized
+ *       404:
+ *         description: Item not found
+ */
+router.post('/:id/resolve', 
+  auth, 
+  [
+    body('matchedItemId')
+      .notEmpty()
+      .withMessage('Matched item ID is required')
+      .isMongoId()
+      .withMessage('Invalid matched item ID'),
+    body('resolution')
+      .notEmpty()
+      .withMessage('Resolution details are required')
+      .isLength({ min: 10, max: 1000 })
+      .withMessage('Resolution must be between 10 and 1000 characters')
+      .trim()
+  ],
+  itemController.resolveItem as RequestHandler
+);
 
+/**
+ * @swagger
+ * /items/{id}/confirm-resolution:
+ *   post:
+ *     summary: Confirm item resolution with code
+ *     tags: [Items]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the item
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - confirmationCode
+ *             properties:
+ *               confirmationCode:
+ *                 type: string
+ *                 minLength: 8
+ *                 maxLength: 8
+ *                 pattern: '^[A-Z0-9]{8}$'
+ *                 description: 8-character confirmation code
+ *     responses:
+ *       200:
+ *         description: Resolution confirmed successfully
+ *       400:
+ *         description: Invalid confirmation code
+ *       403:
+ *         description: Not authorized
+ *       404:
+ *         description: Resolution request not found
+ */
+router.post('/:id/confirm-resolution',
+  auth,
+  [
+    body('confirmationCode')
+      .notEmpty()
+      .withMessage('Confirmation code is required')
+      .isLength({ min: 8, max: 8 })
+      .withMessage('Confirmation code must be exactly 8 characters')
+      .matches(/^[A-Z0-9]{8}$/)
+      .withMessage('Invalid confirmation code format')
+      .trim()
+      .toUpperCase()
+  ],
+  itemController.confirmResolution as RequestHandler
+);
+
+/**
+ * @swagger
+ * /items/{id}/resolution-status:
+ *   get:
+ *     summary: Get resolution status for an item
+ *     tags: [Items]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the item
+ *     responses:
+ *       200:
+ *         description: Resolution status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     resolutionId:
+ *                       type: string
+ *                     status:
+ *                       type: string
+ *                       enum: [pending, confirmed, rejected, expired]
+ *                     resolution:
+ *                       type: string
+ *                     expiresAt:
+ *                       type: string
+ *                       format: date-time
+ *                     createdAt:
+ *                       type: string
+ *                       format: date-time
+ *       403:
+ *         description: Not authorized
+ *       404:
+ *         description: Item not found
+ */
+router.get('/:id/resolution-status',
+  auth,
+  itemController.getResolutionStatus as RequestHandler
+);
 export default router;

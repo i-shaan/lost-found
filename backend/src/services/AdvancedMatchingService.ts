@@ -121,14 +121,7 @@ export class AdvancedMatchingService {
     // Calculate base overall score
     const overallScore = totalWeight > 0 ? totalWeightedScore / totalWeight : 0;
 
-    // Improved confidence calculation
-    // const confidence = this.calculateImprovedConfidence(
-    //   overallScore, 
-    //   detailedScores, 
-    //   activeComponents, 
-    //   item1, 
-    //   item2
-    // );
+
 
     return {
       overall_score: Math.round(overallScore * 1000) / 1000,
@@ -137,96 +130,6 @@ export class AdvancedMatchingService {
       detailed_scores: detailedScores
     };
   }
-
-//   private calculateImprovedConfidence(
-//     overallScore: number,
-//     detailedScores: { [key: string]: number },
-//     activeComponents: number,
-//     item1: any,
-//     item2: any
-//   ): number {
-//     // Start with base score but apply non-linear transformation
-//     let confidence = this.applyConfidenceTransformation(overallScore);
-
-//     // Component diversity bonus/penalty
-//     const componentBonus = this.calculateComponentDiversityBonus(activeComponents, detailedScores);
-//     confidence = confidence * componentBonus;
-
-//     // Quality gates - significant penalties for poor matches
-//     confidence = this.applyQualityGates(confidence, detailedScores, item1, item2);
-
-//     // Final normalization and clamping
-//     confidence = Math.max(0, Math.min(1, confidence));
-
-//     return confidence;
-//   }
-
-//   private applyConfidenceTransformation(score: number): number {
-//     // Apply sigmoid-like transformation to spread out confidence values
-//     // This prevents clustering around 0.6-0.7
-//     if (score < 0.3) {
-//       return score * 0.5; // Compress low scores further
-//     } else if (score < 0.5) {
-//       return 0.15 + (score - 0.3) * 1.0; // Linear scaling in middle range
-//     } else if (score < 0.7) {
-//       return 0.35 + (score - 0.5) * 1.5; // Expand middle-high range
-//     } else if (score < 0.85) {
-//       return 0.65 + (score - 0.7) * 1.8; // Further expand high range
-//     } else {
-//       return 0.92 + (score - 0.85) * 0.8; // Compress very high scores slightly
-//     }
-//   }
-
-//   private calculateComponentDiversityBonus(activeComponents: number, detailedScores: { [key: string]: number }): number {
-//     // Bonus for having multiple strong matching components
-//     let bonus = 1.0;
-
-//     if (activeComponents >= 5) {
-//       bonus = 1.25; // Strong match across multiple dimensions
-//     } else if (activeComponents >= 4) {
-//       bonus = 1.15;
-//     } else if (activeComponents >= 3) {
-//       bonus = 1.05;
-//     } else if (activeComponents <= 1) {
-//       bonus = 0.7; // Penalty for matches based on single component
-//     }
-
-//     // Additional bonus for having multiple high-scoring components
-//     const highScoreComponents = Object.values(detailedScores).filter(score => score > 0.7).length;
-//     if (highScoreComponents >= 3) {
-//       bonus *= 1.1;
-//     }
-
-//     return bonus;
-//   }
-
-//   private applyQualityGates(
-//     confidence: number, 
-//     detailedScores: { [key: string]: number }, 
-//     item1: any, 
-//     item2: any
-//   ): number {
-//     // Severe penalty for category mismatch (unless other factors are very strong)
-//     const categoryScore = detailedScores.category_match || 0;
-//     if (categoryScore < 0.3 ) {
-//       confidence *= 0.6;
-//     }
-
-//     // Penalty for very different text content
-//     const textScore = detailedScores.text_similarity || 0;
-//     if (textScore < 0.2) {
-//       confidence *= 0.7;
-//     }
-
-//     // Bonus for exact category match
-//     if (categoryScore >= 0.95) {
-//       confidence *= 1.1;
-//     }
-
-
-
-//     return confidence;
-//   }
 
   private calculateTextSimilarity(item1: any, item2: any): number {
     const text1 = this.prepareTextForAnalysis(item1);

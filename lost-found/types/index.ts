@@ -1,3 +1,5 @@
+import { SetStateAction } from "react";
+
 export interface User {
     _id: string;
     email: string;
@@ -26,6 +28,7 @@ export interface User {
   }
   
   export interface Item {
+    data: SetStateAction<Item | null>;
     _id: string;
     title: string;
     description: string;
@@ -44,6 +47,19 @@ export interface User {
     isVerified: boolean;
     createdAt: Date;
     updatedAt: Date;
+  }
+  export interface ResolutionRequest {
+    _id: string;
+    sourceItemId: string;
+    matchedItemId: string;
+    initiatedBy: string;
+    resolution: string;
+    confirmationCode: string;
+    status: 'pending' | 'confirmed' | 'rejected' | 'expired';
+    confirmedBy?: string;
+    confirmedAt?: Date;
+    expiresAt: Date;
+    createdAt: Date;
   }
   
   export interface Match {

@@ -120,7 +120,7 @@ class EmbeddingService:
 
         return features
 
-    async def calculate_similarity(self, embedding1: List[float], embedding2: List[float]) -> float:
+
         try:
             if len(embedding1) != len(embedding2):
                 return 0.0
@@ -140,7 +140,7 @@ class EmbeddingService:
             logger.error(f"Similarity calculation failed: {str(e)}")
             return 0.0
 
-    async def batch_generate_embeddings(self, items: List[Dict[str, Any]]) -> List[Dict[str, List[float]]]:
+
         results = []
         
         for item in items:

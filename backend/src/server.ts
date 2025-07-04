@@ -161,14 +161,22 @@ declare global {
 }
 
 dotenv.config();
-
 const app = express();
 const server = createServer(app);
+
+// Fixed Socket.IO CORS configuration
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    methods: ['GET', 'POST']
-  }
+    origin: [
+      "http://localhost:3000", 
+      "http://127.0.0.1:3000",
+      process.env.FRONTEND_URL || "http://localhost:3000"
+    ],
+    methods: ["GET", "POST"],
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"]
+  },
+  allowEIO3: true // Optional: for backward compatibility
 });
 
 // Security middleware
@@ -182,10 +190,16 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// CORS configuration
+// Updated CORS configuration for Express
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
+  origin: [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000", 
+    process.env.FRONTEND_URL || 'http://localhost:3000'
+  ],
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
 // Body parsing middleware
@@ -197,7 +211,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   req.io = io;
   next();
 });
-app.use(cookieParser()); 
+app.use(cookieParser());
+
 // Database connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/lost-found')
   .then(() => logger.info('Connected to MongoDB'))
@@ -220,12 +235,19 @@ app.get('/api/health', (_req: Request, res: Response) => {
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   logger.info(`User connected: ${socket.id}`);
-
+  
+  // Handle user joining their specific room
+  socket.on('join', (room: string) => {
+    socket.join(room);
+    logger.info(`Socket ${socket.id} joined room: ${room}`);
+  });
+  
+  // Also handle the join_user_room event for compatibility
   socket.on('join_user_room', (userId: string) => {
     socket.join(`user_${userId}`);
     logger.info(`User ${userId} joined their room`);
   });
-
+  
   socket.on('disconnect', () => {
     logger.info(`User disconnected: ${socket.id}`);
   });
@@ -234,13 +256,13 @@ io.on('connection', (socket) => {
 // Error handling middleware
 app.use(errorHandler);
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
 // 404 handler
 app.use('*', (_req: Request, res: Response) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
 const PORT = process.env.PORT || 5000;
-
 server.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
 });
